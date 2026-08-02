@@ -21,7 +21,7 @@ const REQUIRED_PATHS = [
 ];
 
 function usage() {
-  console.log(`Userscript Forge CLI (Stage A)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  status [--json]   Show the current local stage\n`);
+  console.log(`Userscript Forge CLI (Stage B1)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  status [--json]   Show the current local stage\n`);
 }
 
 function parseArgs(argv) {
@@ -110,15 +110,16 @@ async function status(json) {
   const gitConfig = await readFile(path.join(ROOT, ".git", "config"), "utf8");
   const remoteMatch = gitConfig.match(/\n\s*url\s*=\s*(\S+)/);
   const result = {
-    stage: "A",
+    stage: "B1",
     remoteConfigured: Boolean(remoteMatch),
     remoteUrl: remoteMatch?.[1] ?? null,
-    browserConnected: false,
+    directBrowserVerified: true,
+    managerInjectionVerified: false,
     deviceConnected: false,
     publicationEnabled: false,
   };
   if (json) console.log(JSON.stringify(result, null, 2));
-  else console.log([`Stage: ${result.stage}`, `Remote: ${result.remoteConfigured ? result.remoteUrl : "not configured"}`, "Browser: not connected", "Device: not connected", "Publication: disabled"].join("\n"));
+  else console.log([`Stage: ${result.stage}`, `Remote: ${result.remoteConfigured ? result.remoteUrl : "not configured"}`, `Direct browser: ${result.directBrowserVerified ? "verified" : "not verified"}`, `Manager injection: ${result.managerInjectionVerified ? "verified" : "not verified"}`, "Device: not connected", "Publication: disabled"].join("\n"));
 }
 
 function projectPathFromArg(argument) {
