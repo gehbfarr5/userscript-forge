@@ -563,6 +563,7 @@ const CAPABILITY_PROBE_ALLOWLIST = {
   "iphone-real-appium-backend": ["mobile-backend-iphone-real"],
   "github-public-repository-push": ["github-publish", "github-publish-adapter", "github-release-v012"],
   "greasyfork-publication": ["greasyfork-first-import", "greasyfork-version-sync"],
+  "codex-claude-cli-core": ["agent-cli-core-readonly"],
   "codex-cli-readonly-contract": ["agent-cli-codex-readonly"],
   "claude-cli-readonly-auth": ["agent-cli-claude-readonly"],
 };
