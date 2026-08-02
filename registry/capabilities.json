@@ -14,8 +14,8 @@
       "scope": "Mac Chrome with Tampermonkey",
       "status": "PASS",
       "verification": "structured-evidence",
-      "evidenceRunId": "stage-b-manager-2026-08-02T07-47-25-300Z",
-      "note": "The version 0.1.1 canary installs through Tampermonkey 5.5.0, includes the Android Emulator host match, and injects into the controlled page; GM storage is available. A later v0.1.2 retry is separately recorded as BLOCKED because the current Chrome session exposed no manager control or injection panel."
+      "evidenceRunId": "stage-b-manager-v012-2026-08-02T09-02-16-300Z",
+      "note": "The exact version 0.1.2 canary updates through Tampermonkey 5.5.0 in the real Chrome user profile and injects into the controlled page; GM storage is available. An earlier retry from a separate connector session was BLOCKED and remains preserved as history."
     },
     {
       "id": "android-emulator-firefox-manager",
@@ -42,16 +42,17 @@
       "id": "github-public-repository-push",
       "scope": "Public GitHub repository push",
       "status": "PASS",
-      "verification": "repository-state",
-      "note": "Central and canary repositories have public remotes and pushed main branches; canary v0.1.1 GitHub Release asset and SHA-256 were verified."
+      "verification": "structured-evidence",
+      "evidenceRunId": "github-release-v012-2026-08-02T09-10-00Z",
+      "note": "Central and canary repositories have public remotes and pushed main branches; canary v0.1.1 and v0.1.2 GitHub Release assets were verified against their exact source commits and SHA-256 values."
     },
     {
       "id": "greasyfork-publication",
       "scope": "Greasy Fork publication and synchronization",
       "status": "BLOCKED",
       "verification": "structured-evidence",
-      "evidenceRunId": "greasyfork-first-import-2026-08-02T07-58-00Z",
-      "note": "First-import probe reached Greasy Fork without an authenticated session; sign-in in the authorized Chrome profile is required before the two-version publication test."
+      "evidenceRunId": "greasyfork-security-gate-2026-08-02T09-03-00Z",
+      "note": "The authorized account is signed in, but Greasy Fork requires a verified email, 2FA, or third-party login before script publication; no account security setting was changed by the probe."
     },
     {
       "id": "codex-claude-cli-core",
