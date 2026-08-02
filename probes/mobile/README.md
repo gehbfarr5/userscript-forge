@@ -29,6 +29,8 @@ pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.j
 
 建议检查 ID：`firefox-launched`、`manager-install-surface`、`script-installed`、`manager-injection`、`gm-storage`。结果必须按 `userscript-canary.manifest.json` 的 `requiredChecks` 完整覆盖；不要写入设备 serial、局域网地址、Firefox profile 或登录态到公开仓库。
 
+外部结果的 `probe` 必须为 `android-emulator-manager`，`environment.target` 必须为 `android-emulator-firefox-manager`；中央 `validate-evidence` 会拒绝缺少任一必需检查或任一检查不是 `PASS` 的结果。
+
 示例（由仓外编排器执行，不在 Codex 沙箱中执行设备 I/O）：
 
 ```text

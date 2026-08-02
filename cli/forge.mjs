@@ -420,19 +420,33 @@ async function newProject(args, json) {
   else console.log(`Created ${projectRoot}\nRun: pnpm run forge -- validate-project ../projects/${options.id} --json`);
 }
 
-function inspectEvidence(evidence, validator, evidencePath) {
+function inspectEvidence(evidence, validator, evidencePath, mobileManifest = null) {
   const schemaValid = validator(evidence);
   const checks = Array.isArray(evidence.checks) ? evidence.checks : [];
   const ids = checks.map((check) => check.id);
   const uniqueCheckIds = new Set(ids).size === ids.length;
   const passStatusHasOnlyPassChecks = evidence.status !== "PASS" || checks.every((check) => check.status === "PASS");
+  const isMobileManagerEvidence = evidence.probe === "android-emulator-manager";
+  const requiredMobileChecks = isMobileManagerEvidence && mobileManifest ? mobileManifest.requiredChecks : [];
+  const checksById = new Map(checks.map((check) => [check.id, check]));
+  const mobileTargetMatches = !isMobileManagerEvidence || (mobileManifest && evidence.environment?.target === mobileManifest.target.id);
+  const mobileRequiredChecksPresent = requiredMobileChecks.every((id) => checksById.has(id));
+  const mobileRequiredChecksPass = requiredMobileChecks.every((id) => checksById.get(id)?.status === "PASS");
+  const mobileContract = {
+    applicable: isMobileManagerEvidence,
+    targetMatches: Boolean(mobileTargetMatches),
+    requiredChecksPresent: mobileRequiredChecksPresent,
+    requiredChecksPass: mobileRequiredChecksPass,
+    pass: !isMobileManagerEvidence || Boolean(mobileManifest && mobileTargetMatches && mobileRequiredChecksPresent && mobileRequiredChecksPass),
+  };
   return {
     path: path.relative(path.resolve(ROOT, ".."), evidencePath),
     schemaValid,
     uniqueCheckIds,
     passStatusHasOnlyPassChecks,
+    mobileContract,
     errors: validator.errors ?? [],
-    pass: schemaValid && uniqueCheckIds && passStatusHasOnlyPassChecks,
+    pass: schemaValid && uniqueCheckIds && passStatusHasOnlyPassChecks && mobileContract.pass,
   };
 }
 
@@ -466,9 +480,10 @@ function parseReleaseCheckOptions(args) {
 async function validateEvidence(args, json) {
   const evidencePath = evidencePathFromArg(args[0]);
   const schema = await loadJson("schemas/result.schema.json");
+  const mobileManifest = await loadJson("probes/mobile/userscript-canary.manifest.json");
   const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
   const validator = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
-  const result = inspectEvidence(evidence, validator, evidencePath);
+  const result = inspectEvidence(evidence, validator, evidencePath, mobileManifest);
  if (json) console.log(JSON.stringify(result, null, 2));
  else {
    console.log(`Schema: ${result.schemaValid ? "PASS" : "FAIL"}`);
@@ -486,6 +501,7 @@ async function releaseCheck(args, json) {
   const projectRoot = projectPathFromArg(options.project);
   const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
   const evidenceSchema = await loadJson("schemas/result.schema.json");
+  const mobileManifest = await loadJson("probes/mobile/userscript-canary.manifest.json");
   const validator = new Ajv2020({ allErrors: true, strict: false }).compile(evidenceSchema);
   const checks = [];
   const addCheck = (id, status, details = undefined) => checks.push({ id, status, ...(details ? { details } : {}) });
@@ -517,7 +533,7 @@ async function releaseCheck(args, json) {
     let evidence;
     try { evidence = JSON.parse(await readFile(evidencePath, "utf8")); }
     catch (error) { addCheck(`${kind}-evidence-readable`, "FAIL", { error: String(error?.message || error) }); continue; }
-    const inspection = inspectEvidence(evidence, validator, evidencePath);
+    const inspection = inspectEvidence(evidence, validator, evidencePath, mobileManifest);
     addCheck(`${kind}-evidence-schema`, inspection.pass ? "PASS" : "FAIL", inspection);
     addCheck(`${kind}-status`, evidence.status === "PASS" ? "PASS" : "FAIL", { status: evidence.status });
     addCheck(`${kind}-project`, evidence.project === project.id ? "PASS" : "FAIL", { expected: project.id, actual: evidence.project });

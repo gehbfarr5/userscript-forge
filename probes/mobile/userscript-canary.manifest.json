@@ -7,6 +7,7 @@
     "sha256Required": true
   },
   "target": {
+    "id": "android-emulator-firefox-manager",
     "platform": "android",
     "stage": "emulator",
     "browserPackage": "org.mozilla.firefox",

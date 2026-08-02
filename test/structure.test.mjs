@@ -75,6 +75,7 @@ test("mobile userscript canary manifest is explicit and privacy-safe", async () 
   const manifest = JSON.parse(await read("probes/mobile/userscript-canary.manifest.json"));
   const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
   assert.equal(validate(manifest), true);
+  assert.equal(manifest.target.id, "android-emulator-firefox-manager");
   assert.equal(manifest.target.serialPolicy, "explicit-emulator-serial");
   assert.equal(manifest.target.hostMapping, "10.0.2.2");
   assert.ok(manifest.evidence.forbiddenFields.includes("cookies"));

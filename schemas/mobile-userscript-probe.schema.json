@@ -20,8 +20,9 @@
     },
     "target": {
       "type": "object",
-      "required": ["platform", "stage", "browserPackage", "avd", "serialPolicy", "hostMapping"],
+      "required": ["id", "platform", "stage", "browserPackage", "avd", "serialPolicy", "hostMapping"],
       "properties": {
+        "id": { "const": "android-emulator-firefox-manager" },
         "platform": { "const": "android" },
         "stage": { "const": "emulator" },
         "browserPackage": { "const": "org.mozilla.firefox" },
