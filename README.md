@@ -10,6 +10,7 @@ Userscript Forge 是面向 Codex、Claude 等 Agent 的用户脚本开发、测�
 pnpm run doctor
 pnpm run validate
 pnpm run forge -- status --json
+pnpm run forge -- validate-project ../projects/userscript-environment-check
 ```
 
 中央 CLI、Schema 和策略是流程的权威来源。Agent 专属文件只负责告诉 Agent 如何调用中央命令，不重复定义质量门禁。
