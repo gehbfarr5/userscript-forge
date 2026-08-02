@@ -5,8 +5,8 @@
       "id": "userscript-environment-check",
       "repository": "https://github.com/gehbfarr5/userscript-environment-check",
       "mode": "direct",
-      "status": "local-direct-browser-pass",
-      "greasyFork": "not-configured"
+      "status": "canary-github-v0.1.2-pass",
+      "greasyFork": "blocked-account-security"
     }
   ]
 }

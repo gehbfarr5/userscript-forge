@@ -11,7 +11,7 @@
 
 ## 当前阶段边界
 
-当前是 Stage B2 探针阶段。Stage B1 的本机结构、静态检查和直接浏览器页面测试已完成；Mac Chrome + Tampermonkey 5.5.0 的真实 canary 安装、注入和 GM 存储验证已 PASS，GitHub canary v0.1.1 发布资产已核对；模拟器、真机尚未执行，Greasy Fork 首次导入已因当前会话未登录而 BLOCKED。
+当前是 Stage B2 探针阶段。Stage B1 的本机结构、静态检查和直接浏览器页面测试已完成；Mac Chrome + Tampermonkey 5.5.0 的 v0.1.2 canary 更新、注入和 GM 存储验证已 PASS，GitHub canary v0.1.2 发布资产已核对；模拟器、真机尚未执行，Greasy Fork 账号已登录但首次发布因账号安全登录方式未配置而 BLOCKED。
 
 运行时基线记录在 `.node-version`，当前固定为 Node 24.18.0；不要用本机更高版本把 `doctor` 的失败改成通过。
 
