@@ -527,6 +527,14 @@ const CAPABILITY_PROBE_ALLOWLIST = {
   "claude-cli-readonly-auth": ["agent-cli-claude-readonly"],
 };
 
+const DECLARED_RELEASE_REQUIREMENTS = {
+  "desktop-tampermonkey-manager": "manager",
+  "android-emulator-firefox-manager": "emulator",
+  "oneplus-15-firefox-manager": "oneplus",
+  "github-public-repository-push": "github",
+  "greasyfork-publication": "greasyfork",
+};
+
 function capabilityProbeMatches(capabilityId, probe) {
   return CAPABILITY_PROBE_ALLOWLIST[capabilityId]?.includes(probe) ?? false;
 }
@@ -677,6 +685,27 @@ async function releaseCheck(args, json) {
   const validation = await collectProjectValidation(projectRoot);
   const declaredMobileTargets = new Set((project.targets?.requiredVerification || []).filter((item) => ["android-emulator-firefox-manager", "oneplus-15-firefox-manager"].includes(item)));
   addCheck("project-validation", validation.pass ? "PASS" : "FAIL", validation.checks);
+  if (project.release?.githubRepository && !options.required.has("github")) {
+    addCheck("release-github-evidence-required", "FAIL", {
+      reason: "Every project with a GitHub repository must include --require github.",
+      repository: project.release.githubRepository,
+    });
+  }
+  if (project.release?.greasyForkRequired && !options.required.has("greasyfork")) {
+    addCheck("release-greasyfork-evidence-required", "FAIL", {
+      reason: "This project declares Greasy Fork as required; include --require greasyfork.",
+    });
+  }
+  for (const declaredTarget of project.targets?.requiredVerification || []) {
+    const requiredKind = DECLARED_RELEASE_REQUIREMENTS[declaredTarget];
+    if (requiredKind && !options.required.has(requiredKind)) {
+      addCheck(`declared-${requiredKind}-evidence-required`, "FAIL", {
+        declaredTarget,
+        requiredKind,
+        reason: "The project declares this verification target; release-check must include its explicit evidence kind.",
+      });
+    }
+  }
   const headResult = gitOutput(projectRoot, ["rev-parse", "HEAD"]);
   const cleanResult = gitOutput(projectRoot, ["status", "--porcelain"]);
   addCheck("project-git-clean", cleanResult.value === "" ? "PASS" : "FAIL", cleanResult.error ? { error: cleanResult.error } : undefined);

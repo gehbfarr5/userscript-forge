@@ -129,6 +129,9 @@ test("bundle projects require the readable esbuild adapter", async () => {
   assert.match(cli, /forbiddenEvidenceKeys/);
   assert.match(cli, /--emulator PATH --oneplus PATH/);
   assert.match(cli, /device-target-explicit/);
+  assert.match(cli, /declared-\$\{requiredKind\}-evidence-required/);
+  assert.match(cli, /release-github-evidence-required/);
+  assert.match(cli, /release-greasyfork-evidence-required/);
   assert.match(cli, /publish-github <path> \[options\]/);
   assert.match(cli, /mobile-handoff <path>/);
   assert.match(cli, /--target emulator\|oneplus/);
