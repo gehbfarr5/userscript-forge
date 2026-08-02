@@ -124,6 +124,7 @@ test("bundle projects require the readable esbuild adapter", async () => {
   const cli = await read("cli/forge.mjs");
   assert.match(cli, /build <path> \[--json\]/);
   assert.match(cli, /--verify ID/);
+  assert.match(cli, /--lockfile-only/);
   assert.match(cli, /release-check <path> \[options\]/);
   assert.match(cli, /record-capability <id> <evidence>/);
   assert.match(cli, /forbiddenEvidenceKeys/);

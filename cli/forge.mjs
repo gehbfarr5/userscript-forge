@@ -399,7 +399,7 @@ function generatedReadme(options) {
 
 function projectWorkflow(options) {
   const verification = options.mode === "bundle"
-    ? `      - name: Set up pnpm\n        uses: pnpm/action-setup@v4\n        with:\n          version: 11.1.1\n      - name: Install dependencies\n        run: pnpm install --no-frozen-lockfile\n      - name: Build readable artifact\n        run: pnpm run build\n      - name: Run project tests\n        run: pnpm test\n      - name: Check bundle syntax\n        run: node --check dist/${options.id}.user.js`
+    ? `      - name: Set up pnpm\n        uses: pnpm/action-setup@v4\n        with:\n          version: 11.1.1\n      - name: Install dependencies\n        run: pnpm install --frozen-lockfile\n      - name: Build readable artifact\n        run: pnpm run build\n      - name: Run project tests\n        run: pnpm test\n      - name: Check bundle syntax\n        run: node --check dist/${options.id}.user.js`
     : `      - name: Run project tests\n        run: node --test\n      - name: Check userscript syntax\n        run: node --check userscripts/${options.id}.user.js`;
   return `name: Userscript project CI\n\non:\n  push:\n  pull_request:\n\npermissions:\n  contents: read\n\njobs:\n  verify:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Check out\n        uses: actions/checkout@v4\n      - name: Set up Node 24\n        uses: actions/setup-node@v4\n        with:\n          node-version: 24.18.0\n${verification}\n`;
 }
@@ -461,11 +461,17 @@ async function newProject(args, json) {
       await mkdir(path.dirname(destination), { recursive: true });
       await writeFile(destination, contents, { mode: 0o644 });
     }
-    if (options.gitInit) {
-      execFileSync("git", ["init", "-b", "main"], { cwd: projectRoot, stdio: "ignore" });
+    if (!options.dryRun) {
+      try {
+        execFileSync("pnpm", ["install", "--lockfile-only", "--ignore-scripts"], { cwd: projectRoot, stdio: ["ignore", "pipe", "pipe"] });
+      } catch (error) {
+        const details = String(error?.stderr || error?.stdout || error?.message || "lockfile generation failed").trim();
+        throw new Error(`Unable to generate pnpm-lock.yaml: ${details}`);
+      }
+      if (options.gitInit) execFileSync("git", ["init", "-b", "main"], { cwd: projectRoot, stdio: "ignore" });
     }
   }
-  const result = { id: options.id, mode: options.mode, requiredVerification: manifest.targets.requiredVerification, projectRoot: options.dryRun ? null : projectRoot, files: Object.keys(files).concat("LICENSE"), gitInitialized: !options.dryRun && options.gitInit, dryRun: options.dryRun };
+  const result = { id: options.id, mode: options.mode, requiredVerification: manifest.targets.requiredVerification, projectRoot: options.dryRun ? null : projectRoot, files: Object.keys(files).concat("LICENSE", ...(!options.dryRun ? ["pnpm-lock.yaml"] : [])), gitInitialized: !options.dryRun && options.gitInit, lockfileGenerated: !options.dryRun, dryRun: options.dryRun };
   if (json || options.dryRun) console.log(JSON.stringify(result, null, 2));
   else console.log(`Created ${projectRoot}\nRun: pnpm run forge -- validate-project ../projects/${options.id} --json`);
 }
