@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://userscript-forge.local/schemas/work-order.schema.json",
+  "schemaVersion": 1,
+  "title": "Userscript Forge work order",
+  "type": "object",
+  "required": ["schemaVersion", "projectId", "request", "platforms", "scope", "risk", "acceptance"],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "risk": {
+            "properties": {
+              "accountActions": { "enum": ["form-submit", "state-change"] }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "risk": {
+            "required": ["forbiddenActions"],
+            "properties": {
+              "forbiddenActions": { "minItems": 1 }
+            }
+          },
+          "acceptance": {
+            "properties": {
+              "scenarios": { "minItems": 1 }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "projectId": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "request": {
+      "type": "object",
+      "required": ["summary", "source"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "source": { "enum": ["user-request", "existing-issue", "follow-up"] },
+        "constraints": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    },
+    "platforms": {
+      "type": "object",
+      "required": ["declared", "requiredVerification", "deferred"],
+      "properties": {
+        "declared": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" } },
+        "requiredVerification": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" } },
+        "deferred": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" } }
+      },
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "required": ["inScope", "outOfScope"],
+      "properties": {
+        "inScope": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "outOfScope": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    },
+    "risk": {
+      "type": "object",
+      "required": ["level", "accountActions", "externalSideEffects"],
+      "properties": {
+        "level": { "enum": ["low", "medium", "high"] },
+        "accountActions": { "enum": ["none", "read-only", "form-submit", "state-change"] },
+        "externalSideEffects": { "enum": ["none", "dom-only", "network-read", "network-write"] },
+        "forbiddenActions": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    },
+    "acceptance": {
+      "type": "object",
+      "required": ["scenarios", "publication"],
+      "properties": {
+        "scenarios": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "description", "evidenceKinds"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+              "description": { "type": "string", "minLength": 1 },
+              "evidenceKinds": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" } }
+            },
+            "additionalProperties": false
+          }
+        },
+        "publication": {
+          "type": "object",
+          "required": ["github", "greasyFork"],
+          "properties": {
+            "github": { "type": "boolean" },
+            "greasyFork": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -21,16 +21,19 @@ const REQUIRED_PATHS = [
   "schemas/project.schema.json",
   "schemas/result.schema.json",
   "schemas/capability.schema.json",
+  "schemas/work-order.schema.json",
   "schemas/mobile-userscript-probe.schema.json",
   "schemas/greasyfork-publication-probe.schema.json",
   "policies/public-boundary.json",
   "docs/contracts/lifecycle.md",
+  "docs/contracts/intake.md",
   "registry/capabilities.json",
   "probes/mobile/README.md",
   "probes/mobile/userscript-canary.manifest.json",
   "probes/mobile/oneplus-userscript.manifest.json",
   "probes/publication/greasyfork.manifest.json",
   "probes/publication/README.md",
+  "templates/work-order.example.json",
 ];
 
 function usage() {
@@ -38,6 +41,7 @@ function usage() {
   console.log("greasyfork-handoff <path> --candidate PATH --script-id ID [--base-url URL]: validate and emit the browser publication handoff");
   console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--emulator/--oneplus/--github/--greasyfork evidence paths");
   console.log("record-capability <id> <evidence> [--dry-run] [--json]: promote one validated private evidence record into the public capability registry");
+  console.log("validate-work-order <path> [--json]: validate one private structured intake work order");
   console.log("new --verify ID (repeatable): declare a concrete required verification target such as android-emulator-firefox-manager or oneplus-15-firefox-manager");
   console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  release-check <path> [options]   Run the fail-closed pre-publication gate\n  publish-github <path> [options] Publish a checked candidate to a GitHub Release\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n\nrelease-check evidence options:\n  --manager PATH --device PATH (legacy generic device slot)\n  --emulator PATH --oneplus PATH (explicit Android userscript targets)\n  --github PATH --greasyfork PATH\n\npublish-github options:\n  --release-evidence PATH (required; a matching release-check PASS result)\n  --tag vX.Y.Z --title TEXT --notes TEXT --dry-run\n`);
 }
@@ -147,21 +151,25 @@ async function validate(json) {
   const projectSchema = await loadJson("schemas/project.schema.json");
   const resultSchema = await loadJson("schemas/result.schema.json");
   const capabilitySchema = await loadJson("schemas/capability.schema.json");
+  const workOrderSchema = await loadJson("schemas/work-order.schema.json");
   const mobileProbeSchema = await loadJson("schemas/mobile-userscript-probe.schema.json");
   const greasyForkProbeSchema = await loadJson("schemas/greasyfork-publication-probe.schema.json");
+  const workOrderExample = await loadJson("templates/work-order.example.json");
   const mobileProbeManifest = await loadMobileManifest("emulator");
   const oneplusProbeManifest = await loadMobileManifest("oneplus");
   const greasyForkProbeManifest = await loadJson("probes/publication/greasyfork.manifest.json");
   const capabilities = await loadJson("registry/capabilities.json");
   const capabilityValidator = new Ajv2020({ allErrors: true, strict: false }).compile(capabilitySchema);
+  const workOrderValidator = new Ajv2020({ allErrors: true, strict: false }).compile(workOrderSchema);
   const mobileProbeValidator = new Ajv2020({ allErrors: true, strict: false }).compile(mobileProbeSchema);
   const greasyForkProbeValidator = new Ajv2020({ allErrors: true, strict: false }).compile(greasyForkProbeSchema);
   const policy = await loadJson("policies/public-boundary.json");
   const packageJson = await loadJson("package.json");
   const nodeVersion = (await readFile(path.join(ROOT, ".node-version"), "utf8")).trim();
   const checks = {
-    schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema && capabilitySchema.$schema && mobileProbeSchema.$schema && greasyForkProbeSchema.$schema),
-    schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1 && capabilitySchema.schemaVersion === 1 && mobileProbeSchema.schemaVersion === 1 && greasyForkProbeSchema.schemaVersion === 1,
+    schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema && capabilitySchema.$schema && workOrderSchema.$schema && mobileProbeSchema.$schema && greasyForkProbeSchema.$schema),
+    schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1 && capabilitySchema.schemaVersion === 1 && workOrderSchema.schemaVersion === 1 && mobileProbeSchema.schemaVersion === 1 && greasyForkProbeSchema.schemaVersion === 1,
+    workOrderExampleSchema: workOrderValidator(workOrderExample),
     mobileProbeManifestSchema: mobileProbeValidator(mobileProbeManifest) && mobileProbeValidator(oneplusProbeManifest),
     greasyForkProbeManifestSchema: greasyForkProbeValidator(greasyForkProbeManifest),
     capabilityRegistryVersion: capabilities.schemaVersion === 1 && Array.isArray(capabilities.capabilities),
@@ -173,7 +181,22 @@ async function validate(json) {
     nodeVersionPinned: nodeVersion === "24.18.0",
     noPrivateTree: !(await exists("private")),
   };
-  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs", "registry/capabilities.json", "probes/mobile/userscript-canary.manifest.json", "probes/mobile/oneplus-userscript.manifest.json", "probes/publication/greasyfork.manifest.json"];
+  const publicFiles = [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    "LICENSE",
+    ".node-version",
+    "package.json",
+    "cli/forge.mjs",
+    "schemas/work-order.schema.json",
+    "templates/work-order.example.json",
+    "docs/contracts/intake.md",
+    "registry/capabilities.json",
+    "probes/mobile/userscript-canary.manifest.json",
+    "probes/mobile/oneplus-userscript.manifest.json",
+    "probes/publication/greasyfork.manifest.json",
+  ];
   const forbidden = [];
   for (const relativePath of publicFiles) {
     const contents = await readFile(path.join(ROOT, relativePath), "utf8");
@@ -271,6 +294,17 @@ function evidencePathFromArg(argument) {
   const candidate = path.resolve(ROOT, argument);
   if (candidate !== privateRoot && !candidate.startsWith(`${privateRoot}${path.sep}`)) {
     throw new Error(`Evidence path must be inside ${privateRoot}`);
+  }
+  return candidate;
+}
+
+function workOrderPathFromArg(argument) {
+  if (!argument) throw new Error("validate-work-order requires a work-order.json path");
+  const privateRoot = path.resolve(ROOT, "..", "private");
+  const workOrdersRoot = path.join(privateRoot, "work-orders");
+  const candidate = path.resolve(ROOT, argument);
+  if (candidate !== workOrdersRoot && !candidate.startsWith(`${workOrdersRoot}${path.sep}`)) {
+    throw new Error(`Work-order path must be inside ${workOrdersRoot}`);
   }
   return candidate;
 }
@@ -609,6 +643,30 @@ async function validateEvidence(args, json) {
    console.log(`Evidence validate: ${result.pass ? "PASS" : "FAIL"}`);
  }
  if (!result.pass) process.exitCode = 1;
+}
+
+async function validateWorkOrder(args, json) {
+  requireSupportedRuntime("validate-work-order");
+  const workOrderPath = workOrderPathFromArg(args[0]);
+  const schema = await loadJson("schemas/work-order.schema.json");
+  const workOrder = JSON.parse(await readFile(workOrderPath, "utf8"));
+  const validator = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+  const schemaValid = validator(workOrder);
+  const result = {
+    path: path.relative(path.resolve(ROOT, ".."), workOrderPath),
+    projectId: workOrder.projectId ?? null,
+    schemaVersion: workOrder.schemaVersion ?? null,
+    schemaValid,
+    errors: validator.errors ?? [],
+    pass: schemaValid,
+  };
+  if (json) console.log(JSON.stringify(result, null, 2));
+  else {
+    console.log(`Work-order schema: ${result.schemaValid ? "PASS" : "FAIL"}`);
+    if (result.errors.length) console.log(JSON.stringify(result.errors, null, 2));
+    console.log(`Work-order validate: ${result.pass ? "PASS" : "FAIL"}`);
+  }
+  if (!result.pass) process.exitCode = 1;
 }
 
 async function recordCapability(args, json) {
@@ -1316,12 +1374,13 @@ async function main() {
   const { command, json, rest } = parseArgs(process.argv.slice(2));
   if (command === "doctor") return doctor(json);
   if (command === "validate") return validate(json);
- if (command === "validate-project") return validateProject(rest, json);
+  if (command === "validate-project") return validateProject(rest, json);
   if (command === "validate-evidence") return validateEvidence(rest, json);
+  if (command === "validate-work-order") return validateWorkOrder(rest, json);
   if (command === "record-capability") return recordCapability(rest, json);
   if (command === "release-check") return releaseCheck(rest, json);
   if (command === "publish-github") return publishGithub(rest, json);
- if (command === "build") return buildProject(rest, json);
+  if (command === "build") return buildProject(rest, json);
   if (command === "new") return newProject(rest, json);
   if (command === "candidate") return candidate(rest, json);
   if (command === "mobile-handoff") return mobileHandoff(rest, json);

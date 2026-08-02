@@ -20,10 +20,12 @@ test("central scaffold contains the public contract", async () => {
     "schemas/project.schema.json",
     "schemas/result.schema.json",
     "schemas/capability.schema.json",
+    "schemas/work-order.schema.json",
     "schemas/mobile-userscript-probe.schema.json",
     "schemas/greasyfork-publication-probe.schema.json",
     "policies/public-boundary.json",
     "docs/contracts/lifecycle.md",
+    "docs/contracts/intake.md",
     "docs/contracts/legacy-oneplus-skill.md",
     "registry/capabilities.json",
     "probes/mobile/README.md",
@@ -33,6 +35,7 @@ test("central scaffold contains the public contract", async () => {
     "probes/mobile/oneplus-userscript.manifest.json",
     "probes/publication/greasyfork.manifest.json",
     "probes/publication/README.md",
+    "templates/work-order.example.json",
   ]) {
     await access(path.join(ROOT, relativePath), constants.F_OK);
   }
@@ -73,6 +76,20 @@ test("structured evidence schema accepts explicit PASS and BLOCKED results", asy
     status: "BLOCKED",
     checks: [{ id: "manager-injection", status: "BLOCKED" }],
   }), true);
+});
+
+test("work-order schema accepts the private intake template and requires safety fields for account actions", async () => {
+  const schema = JSON.parse(await read("schemas/work-order.schema.json"));
+  const example = JSON.parse(await read("templates/work-order.example.json"));
+  const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+  assert.equal(validate(example), true);
+  assert.equal(validate({
+    ...example,
+    risk: { ...example.risk, accountActions: "form-submit", forbiddenActions: [] },
+  }), false);
+  const cli = await read("cli/forge.mjs");
+  assert.match(cli, /validate-work-order <path> \[--json\]/);
+  assert.match(cli, /Work-order path must be inside/);
 });
 
 test("mobile userscript canary manifest is explicit and privacy-safe", async () => {

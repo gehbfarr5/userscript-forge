@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "projectId": "example-userscript",
+  "request": {
+    "summary": "Short description of the requested page enhancement.",
+    "source": "user-request",
+    "constraints": ["Keep account data private.", "Do not promise undeclared platforms."]
+  },
+  "platforms": {
+    "declared": ["mac-chrome", "android-firefox"],
+    "requiredVerification": ["desktop-tampermonkey-manager", "android-emulator-firefox-manager"],
+    "deferred": ["iphone-safari-stay"]
+  },
+  "scope": {
+    "inScope": ["Improve the declared page interaction."],
+    "outOfScope": ["Payment, credential changes, bulk external actions."]
+  },
+  "risk": {
+    "level": "low",
+    "accountActions": "none",
+    "externalSideEffects": "dom-only",
+    "forbiddenActions": ["Payment", "Account security changes"]
+  },
+  "acceptance": {
+    "scenarios": [
+      { "id": "local-page", "description": "Controlled fixture shows the expected behavior.", "evidenceKinds": ["local-static", "local-direct-browser"] }
+    ],
+    "publication": { "github": true, "greasyFork": true }
+  }
+}
