@@ -20,9 +20,10 @@
     {
       "id": "android-emulator-firefox-manager",
       "scope": "Android emulator Firefox userscript manager",
-      "status": "NOT_RUN",
-      "verification": "not-run",
-      "note": "Desktop manager gate, dual-target manifest, mobile-handoff, and external runner dry-run are complete; only the real emulator Firefox/Tampermonkey execution can change this from NOT_RUN."
+      "status": "PASS",
+      "verification": "structured-evidence",
+      "note": "Current evidence: android-emulator-manager PASS. Previous runs remain in private evidence.",
+      "evidenceRunId": "android-emulator-manager-2026-08-02T14-35-51-353Z"
     },
     {
       "id": "android-emulator-appium-backend",
