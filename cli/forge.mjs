@@ -20,10 +20,12 @@ const REQUIRED_PATHS = [
   "schemas/project.schema.json",
   "schemas/result.schema.json",
   "schemas/capability.schema.json",
+  "schemas/mobile-userscript-probe.schema.json",
   "policies/public-boundary.json",
   "docs/contracts/lifecycle.md",
   "registry/capabilities.json",
   "probes/mobile/README.md",
+  "probes/mobile/userscript-canary.manifest.json",
 ];
 
 function usage() {
@@ -115,14 +117,18 @@ async function validate(json) {
   const projectSchema = await loadJson("schemas/project.schema.json");
   const resultSchema = await loadJson("schemas/result.schema.json");
   const capabilitySchema = await loadJson("schemas/capability.schema.json");
+  const mobileProbeSchema = await loadJson("schemas/mobile-userscript-probe.schema.json");
+  const mobileProbeManifest = await loadJson("probes/mobile/userscript-canary.manifest.json");
   const capabilities = await loadJson("registry/capabilities.json");
   const capabilityValidator = new Ajv2020({ allErrors: true, strict: false }).compile(capabilitySchema);
+  const mobileProbeValidator = new Ajv2020({ allErrors: true, strict: false }).compile(mobileProbeSchema);
   const policy = await loadJson("policies/public-boundary.json");
   const packageJson = await loadJson("package.json");
   const nodeVersion = (await readFile(path.join(ROOT, ".node-version"), "utf8")).trim();
   const checks = {
-    schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema && capabilitySchema.$schema),
-    schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1 && capabilitySchema.schemaVersion === 1,
+    schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema && capabilitySchema.$schema && mobileProbeSchema.$schema),
+    schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1 && capabilitySchema.schemaVersion === 1 && mobileProbeSchema.schemaVersion === 1,
+    mobileProbeManifestSchema: mobileProbeValidator(mobileProbeManifest),
     capabilityRegistryVersion: capabilities.schemaVersion === 1 && Array.isArray(capabilities.capabilities),
     capabilityRegistrySchema: capabilityValidator(capabilities),
     policyVersion: policy.version === 1,
@@ -132,7 +138,7 @@ async function validate(json) {
     nodeVersionPinned: nodeVersion === "24.18.0",
     noPrivateTree: !(await exists("private")),
   };
-  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs", "registry/capabilities.json"];
+  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs", "registry/capabilities.json", "probes/mobile/userscript-canary.manifest.json"];
   const forbidden = [];
   for (const relativePath of publicFiles) {
     const contents = await readFile(path.join(ROOT, relativePath), "utf8");

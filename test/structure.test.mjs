@@ -19,6 +19,7 @@ test("central scaffold contains the public contract", async () => {
     "schemas/project.schema.json",
     "schemas/result.schema.json",
     "schemas/capability.schema.json",
+    "schemas/mobile-userscript-probe.schema.json",
     "policies/public-boundary.json",
     "docs/contracts/lifecycle.md",
     "docs/contracts/legacy-oneplus-skill.md",
@@ -26,6 +27,7 @@ test("central scaffold contains the public contract", async () => {
     "probes/mobile/README.md",
     "probes/mobile/serve.py",
     "probes/mobile/open-firefox-url.sh",
+    "probes/mobile/userscript-canary.manifest.json",
   ]) {
     await access(path.join(ROOT, relativePath), constants.F_OK);
   }
@@ -66,6 +68,17 @@ test("structured evidence schema accepts explicit PASS and BLOCKED results", asy
     status: "BLOCKED",
     checks: [{ id: "manager-injection", status: "BLOCKED" }],
   }), true);
+});
+
+test("mobile userscript canary manifest is explicit and privacy-safe", async () => {
+  const schema = JSON.parse(await read("schemas/mobile-userscript-probe.schema.json"));
+  const manifest = JSON.parse(await read("probes/mobile/userscript-canary.manifest.json"));
+  const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+  assert.equal(validate(manifest), true);
+  assert.equal(manifest.target.serialPolicy, "explicit-emulator-serial");
+  assert.equal(manifest.target.hostMapping, "10.0.2.2");
+  assert.ok(manifest.evidence.forbiddenFields.includes("cookies"));
+  assert.ok(manifest.evidence.forbiddenFields.includes("sessionId"));
 });
 
 test("bundle projects require the readable esbuild adapter", async () => {

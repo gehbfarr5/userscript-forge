@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://userscript-forge.local/schemas/mobile-userscript-probe.schema.json",
+  "schemaVersion": 1,
+  "title": "Userscript Forge mobile userscript probe manifest",
+  "type": "object",
+  "required": ["schemaVersion", "project", "artifact", "target", "paths", "requiredChecks", "evidence"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string", "minLength": 1 },
+    "artifact": {
+      "type": "object",
+      "required": ["relativePath", "versionSource", "sha256Required"],
+      "properties": {
+        "relativePath": { "type": "string", "pattern": "^projects/[^/]+/.+" },
+        "versionSource": { "const": "@version" },
+        "sha256Required": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": ["platform", "stage", "browserPackage", "avd", "serialPolicy", "hostMapping"],
+      "properties": {
+        "platform": { "const": "android" },
+        "stage": { "const": "emulator" },
+        "browserPackage": { "const": "org.mozilla.firefox" },
+        "avd": { "type": "string", "minLength": 1 },
+        "serialPolicy": { "const": "explicit-emulator-serial" },
+        "hostMapping": { "const": "10.0.2.2" }
+      },
+      "additionalProperties": false
+    },
+    "paths": {
+      "type": "object",
+      "required": ["install", "smoke"],
+      "properties": {
+        "install": { "type": "string", "pattern": "^/" },
+        "smoke": { "type": "string", "pattern": "^/" }
+      },
+      "additionalProperties": false
+    },
+    "requiredChecks": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["relativeDirectory", "bindsTo", "forbiddenFields"],
+      "properties": {
+        "relativeDirectory": { "type": "string", "pattern": "^private/evidence/" },
+        "bindsTo": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["sourceCommit", "artifact.sha256"] }
+        },
+        "forbiddenFields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

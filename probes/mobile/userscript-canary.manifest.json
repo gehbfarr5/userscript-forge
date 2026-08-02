@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "project": "userscript-environment-check",
+  "artifact": {
+    "relativePath": "projects/userscript-environment-check/userscripts/userscript-environment-check.user.js",
+    "versionSource": "@version",
+    "sha256Required": true
+  },
+  "target": {
+    "platform": "android",
+    "stage": "emulator",
+    "browserPackage": "org.mozilla.firefox",
+    "avd": "PLK110_API_36",
+    "serialPolicy": "explicit-emulator-serial",
+    "hostMapping": "10.0.2.2"
+  },
+  "paths": {
+    "install": "/userscripts/userscript-environment-check.user.js",
+    "smoke": "/test-pages/smoke.html"
+  },
+  "requiredChecks": [
+    "firefox-launched",
+    "manager-install-surface",
+    "script-installed",
+    "manager-injection",
+    "gm-storage"
+  ],
+  "evidence": {
+    "relativeDirectory": "private/evidence/userscript-environment-check/android-emulator-manager",
+    "bindsTo": ["sourceCommit", "artifact.sha256"],
+    "forbiddenFields": ["serial", "udid", "firefoxProfile", "cookies", "session", "sessionId"]
+  }
+}
