@@ -29,7 +29,7 @@ pnpm run forge -- publish-github ../projects/my-script --release-evidence ../pri
 
 中央 CLI、Schema 和策略是流程的权威来源。Agent 专属文件只负责告诉 Agent 如何调用中央命令，不重复定义质量门禁。
 
-`validate-evidence` 只接受工作区私密区中的结构化结果；`PASS` 结果必须让所有检查项都是 `PASS`。管理器或设备探针遇到环境限制时必须保留 `BLOCKED`，不能用直接脚本测试冒充真实注入。
+`validate-evidence` 只接受工作区私密区中的结构化结果；`PASS` 结果必须让所有检查项都是 `PASS`。管理器或设备探针遇到环境限制时必须保留 `BLOCKED`，并允许通过 `record-capability` 登记为当前阻塞；不能用直接脚本测试冒充真实注入。发布前的 `release-check` 仍只接受完整的 `PASS`。
 
 `new` 是独立项目的统一生成入口。`direct` 生成可读单文件脚本；`bundle` 生成 TypeScript 源码、固定 `esbuild@0.28.1` 构建适配器和可追踪的 `dist/*.user.js` 输出。用可重复的 `--verify <capability-id>` 声明该脚本真正必须支持的平台；例如同时需要 Android 模拟器和一加 15 时分别声明 `android-emulator-firefox-manager` 与 `oneplus-15-firefox-manager`。bundle 候选必须先运行 `build`，再通过项目校验和静态候选锁定。
 

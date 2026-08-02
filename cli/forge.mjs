@@ -527,7 +527,10 @@ function inspectEvidence(evidence, validator, evidencePath, mobileManifest = nul
     targetMatches: Boolean(mobileTargetMatches),
     requiredChecksPresent: mobileRequiredChecksPresent,
     requiredChecksPass: mobileRequiredChecksPass,
-    pass: !isMobileManagerEvidence || Boolean(mobileManifest && mobileTargetMatches && mobileRequiredChecksPresent && mobileRequiredChecksPass),
+    // A non-PASS result is still useful evidence when the probe reached a real
+    // environment boundary. Only PASS evidence must prove every required check.
+    // release-check separately enforces PASS for any platform needed to publish.
+    pass: !isMobileManagerEvidence || Boolean(mobileManifest && mobileTargetMatches && mobileRequiredChecksPresent && (evidence.status !== "PASS" || mobileRequiredChecksPass)),
   };
   return {
     path: path.relative(path.resolve(ROOT, ".."), evidencePath),

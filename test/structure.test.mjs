@@ -96,6 +96,7 @@ test("mobile userscript canary manifest is explicit and privacy-safe", async () 
   const schema = JSON.parse(await read("schemas/mobile-userscript-probe.schema.json"));
   const manifest = JSON.parse(await read("probes/mobile/userscript-canary.manifest.json"));
   const oneplusManifest = JSON.parse(await read("probes/mobile/oneplus-userscript.manifest.json"));
+  const cli = await read("cli/forge.mjs");
   const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
   assert.equal(validate(manifest), true);
   assert.equal(validate(oneplusManifest), true);
@@ -108,6 +109,7 @@ test("mobile userscript canary manifest is explicit and privacy-safe", async () 
   assert.ok(manifest.evidence.forbiddenFields.includes("cookies"));
   assert.ok(manifest.evidence.forbiddenFields.includes("sessionId"));
   assert.ok(oneplusManifest.evidence.forbiddenFields.includes("udid"));
+  assert.match(cli, /mobileRequiredChecksPresent && \(evidence\.status !== "PASS" \|\| mobileRequiredChecksPass\)/);
 });
 
 test("Greasy Fork publication manifest is browser-only and privacy-safe", async () => {
