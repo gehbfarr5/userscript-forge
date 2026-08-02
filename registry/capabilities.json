@@ -22,7 +22,7 @@
       "scope": "Android emulator Firefox userscript manager",
       "status": "NOT_RUN",
       "verification": "not-run",
-      "note": "Desktop manager gate is complete; Android emulator probe is the next execution gate."
+      "note": "Desktop manager gate, dual-target manifest, mobile-handoff, and external runner dry-run are complete; only the real emulator Firefox/Tampermonkey execution can change this from NOT_RUN."
     },
     {
       "id": "android-emulator-appium-backend",
@@ -37,7 +37,7 @@
       "scope": "OnePlus 15 Firefox userscript manager",
       "status": "NOT_RUN",
       "verification": "not-run",
-      "note": "Physical-device acceptance remains a later gate."
+      "note": "Explicit real-serial/PLK110 target runner and phone-reachable host handoff are ready; physical Firefox/Tampermonkey acceptance remains gated on the emulator userscript PASS."
     },
     {
       "id": "oneplus-15-appium-backend",
