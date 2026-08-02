@@ -20,6 +20,8 @@ pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.j
 
 ## Android 模拟器 Firefox canary
 
+仓外编排器的参考入口是 `~/Desktop/mobile-automation-infra/scripts/android-emulator-userscript-canary.mjs`。它会执行下面的 handoff，并在非 Codex-headless 环境中负责显式模拟器/Appium 生命周期；先运行 `--dry-run`，再使用当前 candidate evidence 运行真实门禁。
+
 下一门禁使用公开的 `userscript-environment-check` 项目，不使用真实论坛页面或真实账号：
 
 1. 编排器先按 `~/Desktop/mobile-automation-infra` 的 doctor/runbook 检查 `PLK110_API_36`，只选择 Android emulator + Appium。
