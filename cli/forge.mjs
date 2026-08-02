@@ -481,6 +481,15 @@ function inspectEvidence(evidence, validator, evidencePath, mobileManifest = nul
   };
 }
 
+function releaseEvidenceProbeMatches(kind, probe) {
+  if (typeof probe !== "string") return false;
+  if (kind === "manager") return /^stage-b-manager(?:-|$)/.test(probe);
+  if (kind === "device") return ["android-emulator-manager", "oneplus-15-firefox-manager"].includes(probe);
+  if (kind === "github") return /^github-publish(?:-|$)/.test(probe);
+  if (kind === "greasyfork") return ["greasyfork", "greasyfork-version-sync"].includes(probe);
+  return false;
+}
+
 function parseReleaseCheckOptions(args) {
   const options = { candidate: null, required: new Set(), evidence: {} };
   const evidenceOptions = new Map([["--manager", "manager"], ["--device", "device"], ["--github", "github"], ["--greasyfork", "greasyfork"]]);
@@ -572,6 +581,16 @@ async function releaseCheck(args, json) {
     catch (error) { addCheck(`${kind}-evidence-readable`, "FAIL", { error: String(error?.message || error) }); continue; }
     const inspection = inspectEvidence(evidence, validator, evidencePath, mobileManifestForEvidence(evidence, mobileManifests));
     addCheck(`${kind}-evidence-schema`, inspection.pass ? "PASS" : "FAIL", inspection);
+    addCheck(`${kind}-probe`, releaseEvidenceProbeMatches(kind, evidence.probe) ? "PASS" : "FAIL", {
+      expected: kind === "manager"
+        ? "stage-b-manager*"
+        : kind === "device"
+          ? ["android-emulator-manager", "oneplus-15-firefox-manager"]
+          : kind === "github"
+            ? "github-publish*"
+            : ["greasyfork", "greasyfork-version-sync"],
+      actual: evidence.probe,
+    });
     addCheck(`${kind}-status`, evidence.status === "PASS" ? "PASS" : "FAIL", { status: evidence.status });
     addCheck(`${kind}-project`, evidence.project === project.id ? "PASS" : "FAIL", { expected: project.id, actual: evidence.project });
     addCheck(`${kind}-source-commit`, evidence.sourceCommit === candidate.sourceCommit ? "PASS" : "FAIL", { expected: candidate.sourceCommit, actual: evidence.sourceCommit });
