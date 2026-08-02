@@ -101,6 +101,8 @@ test("bundle projects require the readable esbuild adapter", async () => {
   assert.match(cli, /build <path> \[--json\]/);
   assert.match(cli, /release-check <path> \[options\]/);
   assert.match(cli, /publish-github <path> \[options\]/);
+  assert.match(cli, /mobile-handoff <path>/);
+  assert.match(cli, /external-orchestrator-required/);
   assert.match(cli, /release-check PASS evidence record/);
   assert.match(cli, /release", "create"/);
   assert.match(cli, /Every required platform evidence record must be PASS/);
