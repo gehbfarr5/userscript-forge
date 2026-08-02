@@ -5,6 +5,7 @@ import { constants } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import Ajv2020 from "ajv/dist/2020.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -26,7 +27,7 @@ const REQUIRED_PATHS = [
 ];
 
 function usage() {
-  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  new <id> [options] Create an independent direct-script project\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n`);
+  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  new <id> [options] Create an independent direct-script project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n`);
 }
 
 function parseArgs(argv) {
@@ -341,8 +342,7 @@ async function validateEvidence(args, json) {
   if (!result.pass) process.exitCode = 1;
 }
 
-async function validateProject(args, json) {
-  const projectRoot = projectPathFromArg(args[0]);
+async function collectProjectValidation(projectRoot) {
   const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
   const policy = await loadJson("policies/public-boundary.json");
   const scriptRoot = path.join(projectRoot, "userscripts");
@@ -374,13 +374,80 @@ async function validateProject(args, json) {
   checks.pass = Object.entries(checks)
     .filter(([key]) => key !== "forbiddenText")
     .every(([, value]) => value === true) && forbidden.length === 0;
-  const result = { project: project.id ?? null, checks, pass: checks.pass };
+  return { project: project.id ?? null, checks, pass: checks.pass };
+}
+
+async function validateProject(args, json) {
+  const projectRoot = projectPathFromArg(args[0]);
+  const result = await collectProjectValidation(projectRoot);
   if (json) console.log(JSON.stringify(result, null, 2));
   else {
-    for (const [key, value] of Object.entries(checks)) console.log(`${key}: ${Array.isArray(value) ? (value.length ? "FAIL" : "PASS") : value ? "PASS" : "FAIL"}`);
-    console.log(`Project validate: ${checks.pass ? "PASS" : "FAIL"}`);
+    for (const [key, value] of Object.entries(result.checks)) console.log(`${key}: ${Array.isArray(value) ? (value.length ? "FAIL" : "PASS") : value ? "PASS" : "FAIL"}`);
+    console.log(`Project validate: ${result.pass ? "PASS" : "FAIL"}`);
   }
-  if (!checks.pass) process.exitCode = 1;
+  if (!result.pass) process.exitCode = 1;
+  return result;
+}
+
+function gitOutput(projectRoot, args) {
+  try {
+    return execFileSync("git", ["-C", projectRoot, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  } catch (error) {
+    if (error?.code === "ENOENT") throw new Error("Git is required for candidate locking but was not found on PATH");
+    return null;
+  }
+}
+
+async function candidate(args, json) {
+  const projectRoot = projectPathFromArg(args[0]);
+  const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
+  const validation = await collectProjectValidation(projectRoot);
+  const scriptRoot = path.join(projectRoot, "userscripts");
+  const scriptFiles = (await readdir(scriptRoot)).filter((item) => item.endsWith(".user.js"));
+  const scriptFile = scriptFiles.length === 1 ? scriptFiles[0] : null;
+  const sourceCommit = gitOutput(projectRoot, ["rev-parse", "HEAD"]);
+  const gitStatus = gitOutput(projectRoot, ["status", "--porcelain"]);
+  const artifactPath = scriptFile ? path.join(scriptRoot, scriptFile) : null;
+  const artifactSha256 = artifactPath ? createHash("sha256").update(await readFile(artifactPath)).digest("hex") : null;
+  const checks = [
+    { id: "project-validation", status: validation.pass ? "PASS" : "FAIL" },
+    { id: "single-artifact", status: scriptFile ? "PASS" : "FAIL" },
+    { id: "git-source-commit", status: sourceCommit ? "PASS" : "FAIL" },
+    { id: "git-clean", status: gitStatus === "" ? "PASS" : "FAIL" },
+    { id: "artifact-sha256", status: artifactSha256 ? "PASS" : "FAIL" },
+  ];
+  const status = checks.every((check) => check.status === "PASS") ? "PASS" : "FAIL";
+  const timestamp = new Date().toISOString();
+  const runId = `candidate-${project.id}-${timestamp.replace(/[:.]/g, "-")}`;
+  const evidence = {
+    schemaVersion: 1,
+    runId,
+    status,
+    project: project.id ?? null,
+    probe: "candidate",
+    ...(sourceCommit ? { sourceCommit } : {}),
+    artifact: {
+      ...(scriptFile ? { path: `projects/${project.id}/userscripts/${scriptFile}` } : {}),
+      ...(artifactSha256 ? { sha256: artifactSha256 } : {}),
+    },
+    environment: {
+      staticValidation: status,
+      managerInjection: "NOT_RUN",
+      releaseReady: false,
+    },
+    checks,
+    notes: ["This is a static candidate lock. Manager, device, and publication gates remain separate."],
+    startedAt: timestamp,
+    finishedAt: new Date().toISOString(),
+  };
+  const privateEvidenceDir = path.resolve(ROOT, "..", "private", "evidence", project.id, "candidate");
+  await mkdir(privateEvidenceDir, { recursive: true, mode: 0o700 });
+  const evidencePath = path.join(privateEvidenceDir, `${runId}.json`);
+  await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+  const result = { ...evidence, evidencePath: path.relative(path.resolve(ROOT, ".."), evidencePath) };
+  if (json) console.log(JSON.stringify(result, null, 2));
+  else console.log(`Candidate: ${status}\nEvidence: ${result.evidencePath}\nRelease ready: no (manager/device/publication gates remain)`);
+  if (status !== "PASS") process.exitCode = 1;
 }
 
 async function main() {
@@ -390,6 +457,7 @@ async function main() {
   if (command === "validate-project") return validateProject(rest, json);
   if (command === "validate-evidence") return validateEvidence(rest, json);
   if (command === "new") return newProject(rest, json);
+  if (command === "candidate") return candidate(rest, json);
   if (command === "status") return status(json);
   usage();
 }
