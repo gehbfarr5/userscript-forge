@@ -21,6 +21,7 @@ test("central scaffold contains the public contract", async () => {
     "schemas/capability.schema.json",
     "policies/public-boundary.json",
     "docs/contracts/lifecycle.md",
+    "docs/contracts/legacy-oneplus-skill.md",
     "registry/capabilities.json",
     "probes/mobile/README.md",
     "probes/mobile/serve.py",
