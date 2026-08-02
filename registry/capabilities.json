@@ -36,9 +36,10 @@
     {
       "id": "oneplus-15-firefox-manager",
       "scope": "OnePlus 15 Firefox userscript manager",
-      "status": "NOT_RUN",
-      "verification": "not-run",
-      "note": "Explicit real-serial/PLK110 target runner and phone-reachable host handoff are ready; physical Firefox/Tampermonkey acceptance remains gated on the emulator userscript PASS."
+      "status": "BLOCKED",
+      "verification": "structured-evidence",
+      "note": "Current evidence: oneplus-15-firefox-manager BLOCKED. Previous runs remain in private evidence.",
+      "evidenceRunId": "oneplus-15-firefox-manager-2026-08-02T15-47-27-520Z"
     },
     {
       "id": "oneplus-15-appium-backend",
