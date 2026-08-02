@@ -18,8 +18,10 @@ test("central scaffold contains the public contract", async () => {
     "CLAUDE.md",
     "schemas/project.schema.json",
     "schemas/result.schema.json",
+    "schemas/capability.schema.json",
     "policies/public-boundary.json",
     "docs/contracts/lifecycle.md",
+    "registry/capabilities.json",
   ]) {
     await access(path.join(ROOT, relativePath), constants.F_OK);
   }
@@ -60,4 +62,13 @@ test("structured evidence schema accepts explicit PASS and BLOCKED results", asy
     status: "BLOCKED",
     checks: [{ id: "manager-injection", status: "BLOCKED" }],
   }), true);
+});
+
+test("capability registry keeps unverified platforms explicit", async () => {
+  const registry = JSON.parse(await read("registry/capabilities.json"));
+  const byId = new Map(registry.capabilities.map((item) => [item.id, item]));
+  assert.equal(byId.get("desktop-direct-browser")?.status, "PASS");
+  assert.equal(byId.get("desktop-tampermonkey-manager")?.status, "BLOCKED");
+  assert.equal(byId.get("android-emulator-firefox-manager")?.status, "NOT_RUN");
+  assert.equal(byId.get("iphone-safari-stay")?.status, "NOT_RUN");
 });

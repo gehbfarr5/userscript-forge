@@ -17,8 +17,10 @@ const REQUIRED_PATHS = [
   "package.json",
   "schemas/project.schema.json",
   "schemas/result.schema.json",
+  "schemas/capability.schema.json",
   "policies/public-boundary.json",
   "docs/contracts/lifecycle.md",
+  "registry/capabilities.json",
 ];
 
 function usage() {
@@ -74,12 +76,17 @@ async function doctor(json) {
 async function validate(json) {
   const projectSchema = await loadJson("schemas/project.schema.json");
   const resultSchema = await loadJson("schemas/result.schema.json");
+  const capabilitySchema = await loadJson("schemas/capability.schema.json");
+  const capabilities = await loadJson("registry/capabilities.json");
+  const capabilityValidator = new Ajv2020({ allErrors: true, strict: false }).compile(capabilitySchema);
   const policy = await loadJson("policies/public-boundary.json");
   const packageJson = await loadJson("package.json");
   const nodeVersion = (await readFile(path.join(ROOT, ".node-version"), "utf8")).trim();
   const checks = {
-    schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema),
-    schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1,
+    schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema && capabilitySchema.$schema),
+    schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1 && capabilitySchema.schemaVersion === 1,
+    capabilityRegistryVersion: capabilities.schemaVersion === 1 && Array.isArray(capabilities.capabilities),
+    capabilityRegistrySchema: capabilityValidator(capabilities),
     policyVersion: policy.version === 1,
     packageType: packageJson.type === "module",
     packageManagerPinned: packageJson.packageManager === "pnpm@11.1.1",
@@ -87,7 +94,7 @@ async function validate(json) {
     nodeVersionPinned: nodeVersion === "24.18.0",
     noPrivateTree: !(await exists("private")),
   };
-  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs"];
+  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs", "registry/capabilities.json"];
   const forbidden = [];
   for (const relativePath of publicFiles) {
     const contents = await readFile(path.join(ROOT, relativePath), "utf8");

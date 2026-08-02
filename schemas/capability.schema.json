@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://userscript-forge.local/schemas/capability.schema.json",
+  "schemaVersion": 1,
+  "title": "Userscript Forge capability matrix",
+  "type": "object",
+  "required": ["schemaVersion", "capabilities"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "scope", "status", "verification"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "scope": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["PASS", "CONDITIONAL_PASS", "FAIL", "BLOCKED", "NOT_RUN"] },
+          "verification": { "enum": ["structured-evidence", "repository-state", "manual", "not-run"] },
+          "evidenceRunId": { "type": "string", "minLength": 1 },
+          "note": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

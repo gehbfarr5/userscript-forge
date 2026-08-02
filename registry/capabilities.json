@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "capabilities": [
+    {
+      "id": "desktop-direct-browser",
+      "scope": "Mac local browser direct-script fixture",
+      "status": "PASS",
+      "verification": "structured-evidence",
+      "evidenceRunId": "stage-b-direct-2026-08-02T03-32-08Z",
+      "note": "The canary runs in a local page; this does not prove manager injection."
+    },
+    {
+      "id": "desktop-tampermonkey-manager",
+      "scope": "Mac Chrome with Tampermonkey",
+      "status": "BLOCKED",
+      "verification": "structured-evidence",
+      "evidenceRunId": "stage-b-manager-2026-08-02T03-57-35-023Z",
+      "note": "The current automation surface cannot complete the local manager installation flow, so injection is not claimed."
+    },
+    {
+      "id": "android-emulator-firefox-manager",
+      "scope": "Android emulator Firefox userscript manager",
+      "status": "NOT_RUN",
+      "verification": "not-run",
+      "note": "Pending after the desktop manager gate."
+    },
+    {
+      "id": "oneplus-15-firefox-manager",
+      "scope": "OnePlus 15 Firefox userscript manager",
+      "status": "NOT_RUN",
+      "verification": "not-run",
+      "note": "Physical-device acceptance remains a later gate."
+    },
+    {
+      "id": "iphone-safari-stay",
+      "scope": "iPhone Safari with Stay",
+      "status": "NOT_RUN",
+      "verification": "not-run",
+      "note": "Deferred until the iPhone automation configuration is ready."
+    },
+    {
+      "id": "github-public-repository-push",
+      "scope": "Public GitHub repository push",
+      "status": "PASS",
+      "verification": "repository-state",
+      "note": "Central and canary repositories have public remotes and pushed main branches."
+    },
+    {
+      "id": "greasyfork-publication",
+      "scope": "Greasy Fork publication and synchronization",
+      "status": "NOT_RUN",
+      "verification": "not-run",
+      "note": "Requires a later logged-in browser capability probe and two-version release test."
+    }
+  ]
+}
