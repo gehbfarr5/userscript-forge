@@ -36,5 +36,5 @@ test("runtime contract is pinned to Node 24 and pnpm 11.1.1", async () => {
   const packageJson = JSON.parse(await read("package.json"));
   assert.equal(packageJson.engines.node, ">=24 <25");
   assert.equal(packageJson.packageManager, "pnpm@11.1.1");
+  assert.equal((await read(".node-version")).trim(), "24.18.0");
 });
-

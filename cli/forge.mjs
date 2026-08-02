@@ -12,6 +12,7 @@ const REQUIRED_PATHS = [
   "README.md",
   "LICENSE",
   ".gitignore",
+  ".node-version",
   "package.json",
   "schemas/project.schema.json",
   "schemas/result.schema.json",
@@ -74,6 +75,7 @@ async function validate(json) {
   const resultSchema = await loadJson("schemas/result.schema.json");
   const policy = await loadJson("policies/public-boundary.json");
   const packageJson = await loadJson("package.json");
+  const nodeVersion = (await readFile(path.join(ROOT, ".node-version"), "utf8")).trim();
   const checks = {
     schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema),
     schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1,
@@ -81,9 +83,10 @@ async function validate(json) {
     packageType: packageJson.type === "module",
     packageManagerPinned: packageJson.packageManager === "pnpm@11.1.1",
     nodeRangePinned: packageJson.engines?.node === ">=24 <25",
+    nodeVersionPinned: nodeVersion === "24.18.0",
     noPrivateTree: !(await exists("private")),
   };
-  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", "package.json", "cli/forge.mjs"];
+  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs"];
   const forbidden = [];
   for (const relativePath of publicFiles) {
     const contents = await readFile(path.join(ROOT, relativePath), "utf8");
