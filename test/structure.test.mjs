@@ -20,6 +20,7 @@ test("central scaffold contains the public contract", async () => {
     "schemas/result.schema.json",
     "schemas/capability.schema.json",
     "schemas/mobile-userscript-probe.schema.json",
+    "schemas/greasyfork-publication-probe.schema.json",
     "policies/public-boundary.json",
     "docs/contracts/lifecycle.md",
     "docs/contracts/legacy-oneplus-skill.md",
@@ -28,6 +29,8 @@ test("central scaffold contains the public contract", async () => {
     "probes/mobile/serve.py",
     "probes/mobile/open-firefox-url.sh",
     "probes/mobile/userscript-canary.manifest.json",
+    "probes/publication/greasyfork.manifest.json",
+    "probes/publication/README.md",
   ]) {
     await access(path.join(ROOT, relativePath), constants.F_OK);
   }
@@ -82,6 +85,17 @@ test("mobile userscript canary manifest is explicit and privacy-safe", async () 
   assert.ok(manifest.evidence.forbiddenFields.includes("sessionId"));
 });
 
+test("Greasy Fork publication manifest is browser-only and privacy-safe", async () => {
+  const schema = JSON.parse(await read("schemas/greasyfork-publication-probe.schema.json"));
+  const manifest = JSON.parse(await read("probes/publication/greasyfork.manifest.json"));
+  const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+  assert.equal(validate(manifest), true);
+  assert.equal(manifest.mode, "browser-orchestrated");
+  assert.match(manifest.paths.update, /\{scriptId\}/);
+  assert.ok(manifest.evidence.forbiddenFields.includes("otp"));
+  assert.ok(manifest.evidence.forbiddenFields.includes("password"));
+});
+
 test("bundle projects require the readable esbuild adapter", async () => {
   const schema = JSON.parse(await read("schemas/project.schema.json"));
   const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
@@ -104,6 +118,7 @@ test("bundle projects require the readable esbuild adapter", async () => {
   assert.match(cli, /publish-github <path> \[options\]/);
   assert.match(cli, /mobile-handoff <path>/);
   assert.match(cli, /external-orchestrator-required/);
+  assert.match(cli, /greasyfork-handoff <path>/);
   assert.match(cli, /release-check PASS evidence record/);
   assert.match(cli, /release", "create"/);
   assert.match(cli, /Every required platform evidence record must be PASS/);

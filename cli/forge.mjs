@@ -21,15 +21,19 @@ const REQUIRED_PATHS = [
   "schemas/result.schema.json",
   "schemas/capability.schema.json",
   "schemas/mobile-userscript-probe.schema.json",
+  "schemas/greasyfork-publication-probe.schema.json",
   "policies/public-boundary.json",
   "docs/contracts/lifecycle.md",
   "registry/capabilities.json",
   "probes/mobile/README.md",
   "probes/mobile/userscript-canary.manifest.json",
+  "probes/publication/greasyfork.manifest.json",
+  "probes/publication/README.md",
 ];
 
 function usage() {
   console.log("mobile-handoff <path> --candidate PATH [--port NUMBER]: validate and emit the external mobile userscript handoff");
+  console.log("greasyfork-handoff <path> --candidate PATH --script-id ID [--base-url URL]: validate and emit the browser publication handoff");
   console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--github/--greasyfork evidence paths");
   console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  release-check <path> [options]   Run the fail-closed pre-publication gate\n  publish-github <path> [options] Publish a checked candidate to a GitHub Release\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n\npublish-github options:\n  --release-evidence PATH (required; a matching release-check PASS result)\n  --tag vX.Y.Z --title TEXT --notes TEXT --dry-run\n`);
 }
@@ -119,17 +123,21 @@ async function validate(json) {
   const resultSchema = await loadJson("schemas/result.schema.json");
   const capabilitySchema = await loadJson("schemas/capability.schema.json");
   const mobileProbeSchema = await loadJson("schemas/mobile-userscript-probe.schema.json");
+  const greasyForkProbeSchema = await loadJson("schemas/greasyfork-publication-probe.schema.json");
   const mobileProbeManifest = await loadJson("probes/mobile/userscript-canary.manifest.json");
+  const greasyForkProbeManifest = await loadJson("probes/publication/greasyfork.manifest.json");
   const capabilities = await loadJson("registry/capabilities.json");
   const capabilityValidator = new Ajv2020({ allErrors: true, strict: false }).compile(capabilitySchema);
   const mobileProbeValidator = new Ajv2020({ allErrors: true, strict: false }).compile(mobileProbeSchema);
+  const greasyForkProbeValidator = new Ajv2020({ allErrors: true, strict: false }).compile(greasyForkProbeSchema);
   const policy = await loadJson("policies/public-boundary.json");
   const packageJson = await loadJson("package.json");
   const nodeVersion = (await readFile(path.join(ROOT, ".node-version"), "utf8")).trim();
   const checks = {
-    schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema && capabilitySchema.$schema && mobileProbeSchema.$schema),
-    schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1 && capabilitySchema.schemaVersion === 1 && mobileProbeSchema.schemaVersion === 1,
+    schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema && capabilitySchema.$schema && mobileProbeSchema.$schema && greasyForkProbeSchema.$schema),
+    schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1 && capabilitySchema.schemaVersion === 1 && mobileProbeSchema.schemaVersion === 1 && greasyForkProbeSchema.schemaVersion === 1,
     mobileProbeManifestSchema: mobileProbeValidator(mobileProbeManifest),
+    greasyForkProbeManifestSchema: greasyForkProbeValidator(greasyForkProbeManifest),
     capabilityRegistryVersion: capabilities.schemaVersion === 1 && Array.isArray(capabilities.capabilities),
     capabilityRegistrySchema: capabilityValidator(capabilities),
     policyVersion: policy.version === 1,
@@ -139,7 +147,7 @@ async function validate(json) {
     nodeVersionPinned: nodeVersion === "24.18.0",
     noPrivateTree: !(await exists("private")),
   };
-  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs", "registry/capabilities.json", "probes/mobile/userscript-canary.manifest.json"];
+  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs", "registry/capabilities.json", "probes/mobile/userscript-canary.manifest.json", "probes/publication/greasyfork.manifest.json"];
   const forbidden = [];
   for (const relativePath of publicFiles) {
     const contents = await readFile(path.join(ROOT, relativePath), "utf8");
@@ -977,6 +985,99 @@ async function mobileHandoff(args, json) {
   else console.log(`Mobile handoff: PASS\nInstall: ${result.handoff.installUrl}\nSmoke: ${result.handoff.smokeUrl}\nEvidence directory: ${result.handoff.evidenceDirectory}`);
 }
 
+function parseGreasyForkHandoffOptions(args) {
+  if (!args[0] || args[0].startsWith("--")) throw new Error("greasyfork-handoff requires a project path");
+  const options = { project: args[0], candidate: null, scriptId: null, baseUrl: "https://greasyfork.org" };
+  for (let index = 1; index < args.length; index += 1) {
+    const option = args[index];
+    if (option === "--candidate") {
+      options.candidate = takeOptionValue(args, index, option);
+      index += 1;
+    } else if (option === "--script-id") {
+      options.scriptId = takeOptionValue(args, index, option);
+      index += 1;
+    } else if (option === "--base-url") {
+      options.baseUrl = takeOptionValue(args, index, option).replace(/\/$/, "");
+      index += 1;
+    } else {
+      throw new Error(`Unknown greasyfork-handoff option '${option}'`);
+    }
+  }
+  if (!options.candidate) throw new Error("greasyfork-handoff requires --candidate");
+  if (!options.scriptId || !/^\d+$/.test(options.scriptId)) throw new Error("greasyfork-handoff requires a numeric --script-id");
+  let parsedBaseUrl;
+  try { parsedBaseUrl = new URL(options.baseUrl); } catch { throw new Error("--base-url must be a valid HTTPS Greasy Fork URL"); }
+  if (parsedBaseUrl.protocol !== "https:" || parsedBaseUrl.hostname !== "greasyfork.org" || (parsedBaseUrl.pathname !== "/" && parsedBaseUrl.pathname !== "")) {
+    throw new Error("--base-url must be https://greasyfork.org");
+  }
+  return options;
+}
+
+async function greasyForkHandoff(args, json) {
+  requireSupportedRuntime("greasyfork-handoff");
+  const options = parseGreasyForkHandoffOptions(args);
+  const projectRoot = projectPathFromArg(options.project);
+  const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
+  const manifest = await loadJson("probes/publication/greasyfork.manifest.json");
+  const manifestSchema = await loadJson("schemas/greasyfork-publication-probe.schema.json");
+  const manifestValidator = new Ajv2020({ allErrors: true, strict: false }).compile(manifestSchema);
+  if (!manifestValidator(manifest)) throw new Error(`Greasy Fork publication manifest is invalid: ${JSON.stringify(manifestValidator.errors)}`);
+  const validation = await collectProjectValidation(projectRoot);
+  if (!validation.pass) throw new Error("Project validation failed; greasyfork-handoff stopped");
+  const candidatePath = evidencePathFromArg(options.candidate);
+  const candidate = JSON.parse(await readFile(candidatePath, "utf8"));
+  const resultSchema = await loadJson("schemas/result.schema.json");
+  const resultValidator = new Ajv2020({ allErrors: true, strict: false }).compile(resultSchema);
+  const inspection = inspectEvidence(candidate, resultValidator, candidatePath);
+  if (!inspection.pass || candidate.status !== "PASS" || candidate.probe !== "candidate") throw new Error("greasyfork-handoff requires a valid candidate PASS evidence record");
+  const sourceCommit = gitOutput(projectRoot, ["rev-parse", "HEAD"]).value;
+  const artifactRelative = validation.artifactRelative;
+  const artifactPath = artifactRelative ? path.join(projectRoot, artifactRelative) : null;
+  const artifactSha256 = artifactPath ? createHash("sha256").update(await readFile(artifactPath)).digest("hex") : null;
+  if (candidate.project !== project.id || candidate.sourceCommit !== sourceCommit || candidate.artifact?.sha256 !== artifactSha256) {
+    throw new Error("Candidate evidence does not match the current project commit and artifact SHA-256");
+  }
+  const version = releaseVersion(await readFile(artifactPath, "utf8"));
+  const fillPath = (template) => template.replaceAll("{scriptId}", options.scriptId);
+  const base = options.baseUrl;
+  const result = {
+    schemaVersion: 1,
+    status: "PASS",
+    project: project.id,
+    probe: "greasyfork-handoff",
+    sourceCommit,
+    artifact: { path: `projects/${project.id}/${artifactRelative}`, sha256: artifactSha256 },
+    environment: {
+      execution: "external-browser-orchestrator-required",
+      candidateVersion: version,
+      candidateEvidence: path.relative(path.resolve(ROOT, ".."), candidatePath),
+      scriptId: options.scriptId,
+    },
+    handoff: {
+      createUrl: `${base}${manifest.paths.create}`,
+      updateUrl: `${base}${fillPath(manifest.paths.update)}`,
+      scriptPageUrl: `${base}${fillPath(manifest.paths.scriptPage)}`,
+      codePageUrl: `${base}${fillPath(manifest.paths.codePage)}`,
+      requiredChecks: manifest.requiredChecks,
+      evidenceDirectory: manifest.evidence.relativeDirectory.replace("<project>", project.id),
+    },
+    checks: [
+      { id: "manifest-schema", status: "PASS" },
+      { id: "project-validation", status: "PASS" },
+      { id: "candidate-source-commit", status: "PASS" },
+      { id: "candidate-artifact-sha256", status: "PASS" },
+      { id: "external-browser-orchestrator-boundary", status: "PASS", details: { publicationPerformed: false } },
+    ],
+    notes: [
+      "This command performs no Greasy Fork login, form submission, upload, or external write.",
+      "The external browser orchestrator must execute the required checks and write a separate result.json bound to this source commit and artifact SHA-256.",
+      "Credentials, cookies, OTP values, passwords, and account-security secrets are forbidden in evidence.",
+    ],
+  };
+  if (json) console.log(JSON.stringify(result, null, 2));
+  else console.log(`Greasy Fork handoff: PASS\nCreate: ${result.handoff.createUrl}\nUpdate: ${result.handoff.updateUrl}\nPublic code: ${result.handoff.codePageUrl}\nEvidence directory: ${result.handoff.evidenceDirectory}`);
+}
+
 async function main() {
   const { command, json, rest } = parseArgs(process.argv.slice(2));
   if (command === "doctor") return doctor(json);
@@ -989,6 +1090,7 @@ async function main() {
   if (command === "new") return newProject(rest, json);
   if (command === "candidate") return candidate(rest, json);
   if (command === "mobile-handoff") return mobileHandoff(rest, json);
+  if (command === "greasyfork-handoff") return greasyForkHandoff(rest, json);
   if (command === "status") return status(json);
   usage();
 }

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "platform": "greasyfork",
+  "mode": "browser-orchestrated",
+  "paths": {
+    "create": "/zh-CN/script_versions/new",
+    "update": "/zh-CN/scripts/{scriptId}/versions/new",
+    "scriptPage": "/zh-CN/scripts/{scriptId}",
+    "codePage": "/zh-CN/scripts/{scriptId}/code"
+  },
+  "requiredChecks": [
+    "greasyfork-authenticated-session",
+    "greasyfork-account-security-gate",
+    "greasyfork-public-script-form",
+    "greasyfork-script-version",
+    "greasyfork-public-code"
+  ],
+  "evidence": {
+    "relativeDirectory": "private/evidence/<project>/publication",
+    "bindsTo": ["sourceCommit", "artifact.sha256"],
+    "forbiddenFields": ["cookies", "session", "sessionId", "otp", "password", "accountSecuritySecret"]
+  }
+}
