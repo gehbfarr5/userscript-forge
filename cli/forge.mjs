@@ -391,10 +391,10 @@ async function validateProject(args, json) {
 
 function gitOutput(projectRoot, args) {
   try {
-    return execFileSync("git", ["-C", projectRoot, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    return { value: execFileSync("git", ["-C", projectRoot, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(), error: null };
   } catch (error) {
     if (error?.code === "ENOENT") throw new Error("Git is required for candidate locking but was not found on PATH");
-    return null;
+    return { value: null, error: String(error?.stderr || error?.message || "git command failed").trim() };
   }
 }
 
@@ -405,8 +405,10 @@ async function candidate(args, json) {
   const scriptRoot = path.join(projectRoot, "userscripts");
   const scriptFiles = (await readdir(scriptRoot)).filter((item) => item.endsWith(".user.js"));
   const scriptFile = scriptFiles.length === 1 ? scriptFiles[0] : null;
-  const sourceCommit = gitOutput(projectRoot, ["rev-parse", "HEAD"]);
-  const gitStatus = gitOutput(projectRoot, ["status", "--porcelain"]);
+  const sourceCommitResult = gitOutput(projectRoot, ["rev-parse", "HEAD"]);
+  const gitStatusResult = gitOutput(projectRoot, ["status", "--porcelain"]);
+  const sourceCommit = sourceCommitResult.value;
+  const gitStatus = gitStatusResult.value;
   const artifactPath = scriptFile ? path.join(scriptRoot, scriptFile) : null;
   const artifactSha256 = artifactPath ? createHash("sha256").update(await readFile(artifactPath)).digest("hex") : null;
   const checks = [
@@ -419,6 +421,9 @@ async function candidate(args, json) {
   const status = checks.every((check) => check.status === "PASS") ? "PASS" : "FAIL";
   const timestamp = new Date().toISOString();
   const runId = `candidate-${project.id}-${timestamp.replace(/[:.]/g, "-")}`;
+  const notes = ["This is a static candidate lock. Manager, device, and publication gates remain separate."];
+  if (sourceCommitResult.error) notes.push(`Git source commit check: ${sourceCommitResult.error}`);
+  if (gitStatusResult.error) notes.push(`Git clean check: ${gitStatusResult.error}`);
   const evidence = {
     schemaVersion: 1,
     runId,
@@ -436,7 +441,7 @@ async function candidate(args, json) {
       releaseReady: false,
     },
     checks,
-    notes: ["This is a static candidate lock. Manager, device, and publication gates remain separate."],
+    notes,
     startedAt: timestamp,
     finishedAt: new Date().toISOString(),
   };
