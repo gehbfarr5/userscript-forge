@@ -23,7 +23,7 @@
       "status": "PASS",
       "verification": "structured-evidence",
       "note": "Current evidence: android-emulator-manager PASS. Previous runs remain in private evidence.",
-      "evidenceRunId": "android-emulator-manager-2026-08-02T14-35-51-353Z"
+      "evidenceRunId": "android-emulator-manager-2026-08-02T15-01-29-503Z"
     },
     {
       "id": "android-emulator-appium-backend",
