@@ -89,10 +89,10 @@
     {
       "id": "codex-claude-cli-core",
       "scope": "Codex and Claude local CLI core invocation",
-      "status": "CONDITIONAL_PASS",
+      "status": "PASS",
       "verification": "structured-evidence",
-      "evidenceRunId": "agent-cli-availability-2026-08-02T08-04-00Z",
-      "note": "Both CLIs are installed, but current shell-level read-only readiness differs: Codex passed its contract probe while Claude CLI is unauthenticated. Repository writes, browser automation, mobile execution, and publication remain separate probes."
+      "evidenceRunId": "agent-cli-core-readonly-2026-08-02T13-20-16Z",
+      "note": "Current evidence: agent-cli-core-readonly PASS. Previous runs remain in private evidence."
     },
     {
       "id": "codex-cli-readonly-contract",
