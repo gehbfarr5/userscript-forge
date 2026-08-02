@@ -164,7 +164,10 @@ test("bundle projects require the readable esbuild adapter", async () => {
   assert.match(cli, /mobile-handoff <path>/);
   assert.match(cli, /--target emulator\|oneplus/);
   assert.match(cli, /external-orchestrator-required/);
-  assert.match(cli, /greasyfork-handoff <path>/);
+  assert.match(cli, /greasyfork-handoff <path> --candidate PATH \[--script-id ID\|new\]/);
+  assert.match(cli, /options\.scriptId !== null && options\.scriptId !== "new"/);
+  assert.match(cli, /publicationMode: knownScriptId \? "update" : "create"/);
+  assert.match(cli, /if \(knownScriptId\) \{\s+Object\.assign\(handoff/);
   assert.match(cli, /release-check PASS evidence record/);
   assert.match(cli, /release", "create"/);
   assert.match(cli, /Every required platform evidence record must be PASS/);

@@ -38,7 +38,7 @@ const REQUIRED_PATHS = [
 
 function usage() {
   console.log("mobile-handoff <path> --candidate PATH [--target emulator|oneplus] [--base-url URL] [--port NUMBER]: validate and emit the external mobile userscript handoff");
-  console.log("greasyfork-handoff <path> --candidate PATH --script-id ID [--base-url URL]: validate and emit the browser publication handoff");
+  console.log("greasyfork-handoff <path> --candidate PATH [--script-id ID|new] [--base-url URL]: validate and emit the browser publication handoff");
   console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--emulator/--oneplus/--github/--greasyfork evidence paths");
   console.log("record-capability <id> <evidence> [--dry-run] [--json]: promote one validated private evidence record into the public capability registry");
   console.log("validate-work-order <path> [--json]: validate one private structured intake work order");
@@ -1348,7 +1348,10 @@ function parseGreasyForkHandoffOptions(args) {
     }
   }
   if (!options.candidate) throw new Error("greasyfork-handoff requires --candidate");
-  if (!options.scriptId || !/^\d+$/.test(options.scriptId)) throw new Error("greasyfork-handoff requires a numeric --script-id");
+  if (options.scriptId !== null && options.scriptId !== "new" && !/^\d+$/.test(options.scriptId)) {
+    throw new Error("greasyfork-handoff --script-id must be a numeric ID or 'new'");
+  }
+  if (options.scriptId === "new") options.scriptId = null;
   let parsedBaseUrl;
   try { parsedBaseUrl = new URL(options.baseUrl); } catch { throw new Error("--base-url must be a valid HTTPS Greasy Fork URL"); }
   if (parsedBaseUrl.protocol !== "https:" || parsedBaseUrl.hostname !== "greasyfork.org" || (parsedBaseUrl.pathname !== "/" && parsedBaseUrl.pathname !== "")) {
@@ -1382,8 +1385,21 @@ async function greasyForkHandoff(args, json) {
     throw new Error("Candidate evidence does not match the current project commit and artifact SHA-256");
   }
   const version = releaseVersion(await readFile(artifactPath, "utf8"));
+  const knownScriptId = options.scriptId !== null;
   const fillPath = (template) => template.replaceAll("{scriptId}", options.scriptId);
   const base = options.baseUrl;
+  const handoff = {
+    createUrl: `${base}${manifest.paths.create}`,
+    requiredChecks: manifest.requiredChecks,
+    evidenceDirectory: manifest.evidence.relativeDirectory.replace("<project>", project.id),
+  };
+  if (knownScriptId) {
+    Object.assign(handoff, {
+      updateUrl: `${base}${fillPath(manifest.paths.update)}`,
+      scriptPageUrl: `${base}${fillPath(manifest.paths.scriptPage)}`,
+      codePageUrl: `${base}${fillPath(manifest.paths.codePage)}`,
+    });
+  }
   const result = {
     schemaVersion: 1,
     status: "PASS",
@@ -1396,15 +1412,9 @@ async function greasyForkHandoff(args, json) {
       candidateVersion: version,
       candidateEvidence: path.relative(path.resolve(ROOT, ".."), candidatePath),
       scriptId: options.scriptId,
+      publicationMode: knownScriptId ? "update" : "create",
     },
-    handoff: {
-      createUrl: `${base}${manifest.paths.create}`,
-      updateUrl: `${base}${fillPath(manifest.paths.update)}`,
-      scriptPageUrl: `${base}${fillPath(manifest.paths.scriptPage)}`,
-      codePageUrl: `${base}${fillPath(manifest.paths.codePage)}`,
-      requiredChecks: manifest.requiredChecks,
-      evidenceDirectory: manifest.evidence.relativeDirectory.replace("<project>", project.id),
-    },
+    handoff,
     checks: [
       { id: "manifest-schema", status: "PASS" },
       { id: "project-validation", status: "PASS" },
@@ -1419,7 +1429,20 @@ async function greasyForkHandoff(args, json) {
     ],
   };
   if (json) console.log(JSON.stringify(result, null, 2));
-  else console.log(`Greasy Fork handoff: PASS\nCreate: ${result.handoff.createUrl}\nUpdate: ${result.handoff.updateUrl}\nPublic code: ${result.handoff.codePageUrl}\nEvidence directory: ${result.handoff.evidenceDirectory}`);
+  else {
+    const lines = [
+      "Greasy Fork handoff: PASS",
+      `Mode: ${result.environment.publicationMode}`,
+      `Create: ${result.handoff.createUrl}`,
+    ];
+    if (knownScriptId) {
+      lines.push(`Update: ${result.handoff.updateUrl}`);
+      lines.push(`Public script: ${result.handoff.scriptPageUrl}`);
+      lines.push(`Public code: ${result.handoff.codePageUrl}`);
+    }
+    lines.push(`Evidence directory: ${result.handoff.evidenceDirectory}`);
+    console.log(lines.join("\n"));
+  }
 }
 
 async function main() {
