@@ -67,10 +67,10 @@
     {
       "id": "iphone-real-appium-backend",
       "scope": "iPhone real-device Appium UI backend",
-      "status": "BLOCKED",
+      "status": "PASS",
       "verification": "structured-evidence",
-      "evidenceRunId": "iphone-real-appium-2026-08-02T09-50-30Z",
-      "note": "The installed XCUITest path cannot discover the wirelessly paired device until a classic USB trust/pairing handshake is completed."
+      "evidenceRunId": "iphone-real-appium-2026-08-02T09-50-30Z-pass",
+      "note": "Current evidence: mobile-backend-iphone-real PASS. Previous runs remain in private evidence."
     },
     {
       "id": "github-public-repository-push",
