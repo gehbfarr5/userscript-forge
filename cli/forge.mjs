@@ -35,8 +35,8 @@ const REQUIRED_PATHS = [
 function usage() {
   console.log("mobile-handoff <path> --candidate PATH [--target emulator|oneplus] [--base-url URL] [--port NUMBER]: validate and emit the external mobile userscript handoff");
   console.log("greasyfork-handoff <path> --candidate PATH --script-id ID [--base-url URL]: validate and emit the browser publication handoff");
-  console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--github/--greasyfork evidence paths");
-  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  release-check <path> [options]   Run the fail-closed pre-publication gate\n  publish-github <path> [options] Publish a checked candidate to a GitHub Release\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n\npublish-github options:\n  --release-evidence PATH (required; a matching release-check PASS result)\n  --tag vX.Y.Z --title TEXT --notes TEXT --dry-run\n`);
+  console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--emulator/--oneplus/--github/--greasyfork evidence paths");
+  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  release-check <path> [options]   Run the fail-closed pre-publication gate\n  publish-github <path> [options] Publish a checked candidate to a GitHub Release\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n\nrelease-check evidence options:\n  --manager PATH --device PATH (legacy generic device slot)\n  --emulator PATH --oneplus PATH (explicit Android userscript targets)\n  --github PATH --greasyfork PATH\n\npublish-github options:\n  --release-evidence PATH (required; a matching release-check PASS result)\n  --tag vX.Y.Z --title TEXT --notes TEXT --dry-run\n`);
 }
 
 function parseArgs(argv) {
@@ -485,6 +485,8 @@ function releaseEvidenceProbeMatches(kind, probe) {
   if (typeof probe !== "string") return false;
   if (kind === "manager") return ["stage-b-manager", "stage-b-manager-v012", "stage-b-manager-v013"].includes(probe);
   if (kind === "device") return ["android-emulator-manager", "oneplus-15-firefox-manager"].includes(probe);
+  if (kind === "emulator") return probe === "android-emulator-manager";
+  if (kind === "oneplus") return probe === "oneplus-15-firefox-manager";
   if (kind === "github") return ["github-publish", "github-publish-adapter"].includes(probe);
   if (kind === "greasyfork") return ["greasyfork-first-import", "greasyfork-version-sync"].includes(probe);
   return false;
@@ -492,7 +494,14 @@ function releaseEvidenceProbeMatches(kind, probe) {
 
 function parseReleaseCheckOptions(args) {
   const options = { candidate: null, required: new Set(), evidence: {} };
-  const evidenceOptions = new Map([["--manager", "manager"], ["--device", "device"], ["--github", "github"], ["--greasyfork", "greasyfork"]]);
+  const evidenceOptions = new Map([
+    ["--manager", "manager"],
+    ["--device", "device"],
+    ["--emulator", "emulator"],
+    ["--oneplus", "oneplus"],
+    ["--github", "github"],
+    ["--greasyfork", "greasyfork"],
+  ]);
   if (!args[0] || args[0].startsWith("--")) throw new Error("release-check requires a project path");
   options.project = args[0];
   for (let index = 1; index < args.length; index += 1) {
@@ -504,7 +513,7 @@ function parseReleaseCheckOptions(args) {
       const value = takeOptionValue(args, index, option);
       index += 1;
       for (const kind of value.split(",").map((item) => item.trim()).filter(Boolean)) {
-        if (!["manager", "device", "github", "greasyfork"].includes(kind)) throw new Error(`Unknown release evidence kind '${kind}'`);
+        if (!["manager", "device", "emulator", "oneplus", "github", "greasyfork"].includes(kind)) throw new Error(`Unknown release evidence kind '${kind}'`);
         options.required.add(kind);
       }
     } else if (evidenceOptions.has(option)) {
@@ -552,6 +561,7 @@ async function releaseCheck(args, json) {
   const checks = [];
   const addCheck = (id, status, details = undefined) => checks.push({ id, status, ...(details ? { details } : {}) });
   const validation = await collectProjectValidation(projectRoot);
+  const declaredMobileTargets = new Set((project.targets?.requiredVerification || []).filter((item) => ["android-emulator-firefox-manager", "oneplus-15-firefox-manager"].includes(item)));
   addCheck("project-validation", validation.pass ? "PASS" : "FAIL", validation.checks);
   const headResult = gitOutput(projectRoot, ["rev-parse", "HEAD"]);
   const cleanResult = gitOutput(projectRoot, ["status", "--porcelain"]);
@@ -570,6 +580,12 @@ async function releaseCheck(args, json) {
     : null;
   addCheck("candidate-artifact-sha256", Boolean(currentArtifactSha) && candidate.artifact?.sha256 === currentArtifactSha ? "PASS" : "FAIL", { expected: currentArtifactSha, actual: candidate.artifact?.sha256 });
   for (const kind of options.required) {
+    if (kind === "device" && declaredMobileTargets.size > 0) {
+      addCheck("device-target-explicit", "FAIL", {
+        reason: "Project declares explicit mobile userscript targets; use --emulator and/or --oneplus instead of generic --device.",
+        declaredTargets: [...declaredMobileTargets],
+      });
+    }
     const evidenceArgument = options.evidence[kind];
     if (!evidenceArgument) {
       addCheck(`${kind}-evidence-present`, "FAIL", { reason: "required evidence path was not supplied" });
@@ -586,6 +602,10 @@ async function releaseCheck(args, json) {
         ? ["stage-b-manager", "stage-b-manager-v012", "stage-b-manager-v013"]
         : kind === "device"
           ? ["android-emulator-manager", "oneplus-15-firefox-manager"]
+          : kind === "emulator"
+            ? ["android-emulator-manager"]
+            : kind === "oneplus"
+              ? ["oneplus-15-firefox-manager"]
           : kind === "github"
             ? ["github-publish", "github-publish-adapter"]
             : ["greasyfork-first-import", "greasyfork-version-sync"],
