@@ -171,7 +171,8 @@ test("capability registry keeps verified and unverified platforms explicit", asy
   const byId = new Map(registry.capabilities.map((item) => [item.id, item]));
   assert.equal(byId.get("desktop-direct-browser")?.status, "PASS");
   assert.equal(byId.get("desktop-tampermonkey-manager")?.status, "PASS");
-  assert.equal(byId.get("android-emulator-firefox-manager")?.status, "NOT_RUN");
+  assert.equal(byId.get("android-emulator-firefox-manager")?.status, "PASS");
+  assert.match(byId.get("android-emulator-firefox-manager")?.evidenceRunId || "", /^android-emulator-manager-/);
   assert.equal(byId.get("android-emulator-appium-backend")?.status, "PASS");
   assert.equal(byId.get("oneplus-15-appium-backend")?.status, "PASS");
   assert.equal(byId.get("iphone-safari-stay")?.status, "NOT_RUN");
