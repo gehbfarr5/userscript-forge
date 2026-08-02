@@ -27,7 +27,7 @@ const REQUIRED_PATHS = [
 ];
 
 function usage() {
-  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  new <id> [options] Create an independent direct-script project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n`);
+  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n`);
 }
 
 function parseArgs(argv) {
@@ -234,7 +234,7 @@ function parseNewOptions(args) {
   if (!options.description) throw new Error("new requires --description");
   if (!options.repository) throw new Error("new requires --repository");
   if (!options.matches.length) throw new Error("new requires at least one --match");
-  if (options.mode !== "direct") throw new Error("The generator currently supports only --mode direct; bundle remains template-only until its build adapter is enabled");
+  if (!new Set(["direct", "bundle"]).has(options.mode)) throw new Error("--mode must be direct or bundle");
   for (const grant of options.grants) if (!options.grantReasons.has(grant)) throw new Error(`Missing --grant-reason for ${grant}`);
   for (const host of options.connects) if (!options.connectReasons.has(host)) throw new Error(`Missing --connect-reason for ${host}`);
   return options;
@@ -263,19 +263,27 @@ function projectManifest(options) {
     ...options.grants.map((grant) => [grant, options.grantReasons.get(grant)]),
     ...options.connects.map((host) => [`connect:${host}`, options.connectReasons.get(host)]),
   ]);
-  return {
+  const manifest = {
     schemaVersion: 1,
     id: options.id,
     name: options.name,
+    description: options.description,
     mode: options.mode,
     targets: { matches: options.matches, requiredVerification: ["local-static", "local-direct-browser", "declared-platforms"] },
     permissions: { grants: options.grants, connect: options.connects, justifications },
     release: { githubRepository: options.repository, greasyForkRequired: options.greasyForkRequired, releaseBranch: options.releaseBranch ?? "release" },
   };
+  if (options.mode === "bundle") {
+    manifest.build = { adapter: "esbuild", entry: "src/index.ts", output: `dist/${options.id}.user.js`, minify: false };
+  }
+  return manifest;
 }
 
 function generatedReadme(options) {
-  return `# ${options.name}\n\n${options.description}\n\n- Mode: \`${options.mode}\`\n- Declared matches: ${options.matches.map((match) => `\`${match}\``).join(", ")}\n- GitHub: ${options.repository}\n- Greasy Fork required: ${options.greasyForkRequired ? "yes" : "no"}\n\n## Local workflow\n\nRun the central project validator before creating a release candidate:\n\n\`\`\`text\npnpm run forge -- validate-project ../projects/${options.id} --json\n\`\`\`\n\nThe generated script is a scaffold. Add behavior only after the target matrix and permission reasons are confirmed.\n`;
+  const bundleSteps = options.mode === "bundle"
+    ? "\n## Build\n\nInstall the pinned build dependency, then create the readable release artifact:\n\nCommands:\npnpm install\npnpm run build\npnpm test\n\nTracked output: dist/" + options.id + ".user.js\nThe output is intentionally unminified and carries metadata generated from userscript.project.json and package.json.\n"
+    : "";
+  return `# ${options.name}\n\n${options.description}\n\n- Mode: \`${options.mode}\`\n- Declared matches: ${options.matches.map((match) => `\`${match}\``).join(", ")}\n- GitHub: ${options.repository}\n- Greasy Fork required: ${options.greasyForkRequired ? "yes" : "no"}\n\n## Local workflow\n\nRun the central project validator before creating a release candidate:\n\n\`\`\`text\npnpm run forge -- validate-project ../projects/${options.id} --json\n\`\`\`\n${bundleSteps}\nThe generated script is a scaffold. Add behavior only after the target matrix and permission reasons are confirmed.\n`;
 }
 
 function regexEscape(value) {
@@ -289,10 +297,30 @@ async function newProject(args, json) {
   const manifest = projectManifest(options);
   const namePattern = JSON.stringify(`@name\\s+${regexEscape(options.name)}`);
   const matchAssertions = options.matches.map((match) => `assert.match(script, new RegExp(${JSON.stringify(`@match\\s+${regexEscape(match)}`)}));`).join("\n  ");
-  const files = {
+  const bundle = options.mode === "bundle";
+  const packageJson = {
+    name: options.id,
+    version: "0.1.0",
+    private: false,
+    type: "module",
+    license: "MIT",
+    scripts: bundle ? { build: "node build.mjs", test: "node --test" } : { test: "node --test" },
+    engines: { node: ">=24 <25" },
+    packageManager: "pnpm@11.1.1",
+    ...(bundle ? { devDependencies: { esbuild: "0.28.1" } } : {}),
+  };
+  const files = bundle ? {
+    "README.md": generatedReadme(options),
+    ".gitignore": "node_modules/\n.pnpm-store/\n.playwright-cli/\n.DS_Store\n",
+    "package.json": JSON.stringify(packageJson, null, 2) + "\n",
+    "userscript.project.json": JSON.stringify(manifest, null, 2) + "\n",
+    "build.mjs": `import { build } from "esbuild";\nimport { mkdir, readFile } from "node:fs/promises";\nimport path from "node:path";\nimport { fileURLToPath } from "node:url";\n\nconst ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)));\nconst project = JSON.parse(await readFile(path.join(ROOT, "userscript.project.json"), "utf8"));\nconst packageJson = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));\nif (project.mode !== "bundle" || project.build?.adapter !== "esbuild") throw new Error("Bundle project must use the esbuild adapter");\nif (project.build.minify !== false) throw new Error("Userscript bundle output must remain unminified");\nconst metadata = [\n  "// ==UserScript==",\n  "// @name         " + project.name,\n  "// @namespace    " + project.release.githubRepository,\n  "// @version      " + packageJson.version,\n  "// @description  " + project.name,\n  ...project.targets.matches.map((match) => "// @match        " + match),\n  ...project.permissions.grants.map((grant) => "// @grant        " + grant),\n  ...project.permissions.connect.map((host) => "// @connect      " + host),\n  "// @run-at       document-idle",\n  "// @license      MIT",\n  "// ==/UserScript==",\n  ""\n].join("\\n");\nconst output = path.resolve(ROOT, project.build.output);\nawait mkdir(path.dirname(output), { recursive: true });\nawait build({\n  entryPoints: [path.resolve(ROOT, project.build.entry)],\n  outfile: output,\n  bundle: true,\n  format: "iife",\n  target: "es2020",\n  minify: false,\n  sourcemap: false,\n  legalComments: "inline",\n  banner: { js: metadata },\n  logLevel: "info"\n});\nconsole.log(project.id + ": " + project.build.output + " (version " + packageJson.version + ")");\n`,
+    "src/index.ts": `const panel = document.createElement("aside");\npanel.textContent = "Bundle project scaffold";\npanel.dataset.userscriptForge = "bundle";\ndocument.documentElement.append(panel);\n`,
+    "tests/source.test.mjs": `import assert from "node:assert/strict";\nimport { readFile } from "node:fs/promises";\nimport test from "node:test";\n\nconst project = JSON.parse(await readFile(new URL("../userscript.project.json", import.meta.url), "utf8"));\nconst source = await readFile(new URL("../src/index.ts", import.meta.url), "utf8");\n\ntest("bundle project declares the central esbuild adapter", () => {\n  assert.equal(project.mode, "bundle");\n  assert.equal(project.build.adapter, "esbuild");\n  assert.equal(project.build.minify, false);\n  assert.match(source, /userscriptForge/);\n});\n`,
+  } : {
     "README.md": generatedReadme(options),
     ".gitignore": "node_modules/\ndist/\n.playwright-cli/\n.DS_Store\n",
-    "package.json": JSON.stringify({ name: options.id, version: "0.1.0", private: false, type: "module", license: "MIT", scripts: { test: "node --test" }, engines: { node: ">=24 <25" }, packageManager: "pnpm@11.1.1" }, null, 2) + "\n",
+    "package.json": JSON.stringify(packageJson, null, 2) + "\n",
     "userscript.project.json": JSON.stringify(manifest, null, 2) + "\n",
     [`userscripts/${options.id}.user.js`]: `${metadataLines(options)}(() => {\n  "use strict";\n\n  // TODO: implement the requested behavior after the local target fixture exists.\n})();\n`,
     "tests/metadata.test.mjs": `import assert from "node:assert/strict";\nimport { readFile } from "node:fs/promises";\nimport test from "node:test";\n\nconst script = await readFile(new URL("../userscripts/${options.id}.user.js", import.meta.url), "utf8");\n\ntest("generated userscript metadata matches the project declaration", () => {\n  assert.match(script, new RegExp(${namePattern}));\n  ${matchAssertions}\n});\n`,
@@ -355,26 +383,37 @@ async function collectProjectValidation(projectRoot) {
   const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
   const policy = await loadJson("policies/public-boundary.json");
   const scriptRoot = path.join(projectRoot, "userscripts");
-  const scriptFiles = (await readdir(scriptRoot)).filter((item) => item.endsWith(".user.js"));
-  const script = scriptFiles.length === 1 ? await readFile(path.join(scriptRoot, scriptFiles[0]), "utf8") : "";
+  const scriptFiles = await readdir(scriptRoot).catch((error) => (error?.code === "ENOENT" ? [] : Promise.reject(error)));
+  const directScriptFiles = scriptFiles.filter((item) => item.endsWith(".user.js"));
+  const bundleOutput = project.mode === "bundle" && typeof project.build?.output === "string" ? project.build.output : null;
+  const bundleOutputSafe = bundleOutput && !path.isAbsolute(bundleOutput) && !bundleOutput.split("/").includes("..") && bundleOutput.startsWith("dist/") && bundleOutput.endsWith(".user.js");
+  const artifactRelative = project.mode === "bundle" ? (bundleOutputSafe ? bundleOutput : null) : (directScriptFiles.length === 1 ? path.join("userscripts", directScriptFiles[0]) : null);
+  const artifactPath = artifactRelative ? path.join(projectRoot, artifactRelative) : null;
+  const artifactExists = artifactPath ? await access(artifactPath, constants.F_OK).then(() => true).catch(() => false) : false;
+  const script = artifactExists ? await readFile(artifactPath, "utf8") : "";
   const checks = {
     schemaVersion: project.schemaVersion === 1,
     id: typeof project.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(project.id),
     name: typeof project.name === "string" && project.name.length > 0,
+    description: typeof project.description === "string" && project.description.length > 0,
     mode: project.mode === "direct" || project.mode === "bundle",
     targets: Array.isArray(project.targets?.matches) && project.targets.matches.length > 0 && Array.isArray(project.targets?.requiredVerification),
     permissions: Array.isArray(project.permissions?.grants) && Array.isArray(project.permissions?.connect) && typeof project.permissions?.justifications === "object",
     permissionReasons: Array.isArray(project.permissions?.grants) && project.permissions.grants.every((grant) => typeof project.permissions.justifications?.[grant] === "string" && project.permissions.justifications[grant].length > 0),
     release: typeof project.release?.githubRepository === "string" && typeof project.release?.greasyForkRequired === "boolean",
-    singleDirectScript: project.mode === "direct" ? scriptFiles.length === 1 : true,
+    singleDirectScript: project.mode === "direct" ? directScriptFiles.length === 1 : true,
+    bundleConfig: project.mode !== "bundle" || (project.build?.adapter === "esbuild" && project.build?.entry === "src/index.ts" && bundleOutputSafe && project.build?.minify === false),
+    bundleArtifact: project.mode !== "bundle" || artifactExists,
     metadataBlock: /\/\/ ==UserScript==[\s\S]*\/\/ ==\/UserScript==/.test(script),
     metadataRequired: ["name", "namespace", "version", "description", "license"].every((key) => new RegExp(`@${key}\\s+\\S+`).test(script)) && /@match\s+\S+/.test(script),
     targetMatchesDeclared: Array.isArray(project.targets?.matches) && project.targets.matches.every((match) => script.includes(`@match        ${match}`) || script.includes(`@match ${match}`)),
   };
-  const publicFiles = ["README.md", "LICENSE", "userscript.project.json", ...scriptFiles.map((file) => path.join("userscripts", file))];
+  const publicFiles = ["README.md", "LICENSE", "userscript.project.json", ...directScriptFiles.map((file) => path.join("userscripts", file))];
+  if (project.mode === "bundle") publicFiles.push("build.mjs", project.build?.entry, project.build?.output);
   const forbidden = [];
   for (const relativePath of publicFiles) {
-    const contents = await readFile(path.join(projectRoot, relativePath), "utf8");
+    if (!relativePath) continue;
+    const contents = await readFile(path.join(projectRoot, relativePath), "utf8").catch((error) => (error?.code === "ENOENT" ? "" : Promise.reject(error)));
     for (const pattern of policy.forbiddenTextPatterns) {
       if (contents.includes(pattern)) forbidden.push({ file: relativePath, pattern });
     }
@@ -383,7 +422,7 @@ async function collectProjectValidation(projectRoot) {
   checks.pass = Object.entries(checks)
     .filter(([key]) => key !== "forbiddenText")
     .every(([, value]) => value === true) && forbidden.length === 0;
-  return { project: project.id ?? null, checks, pass: checks.pass };
+  return { project: project.id ?? null, checks, pass: checks.pass, artifactRelative };
 }
 
 async function validateProject(args, json) {
@@ -396,6 +435,28 @@ async function validateProject(args, json) {
   }
   if (!result.pass) process.exitCode = 1;
   return result;
+}
+
+async function buildProject(args, json) {
+  const projectRoot = projectPathFromArg(args[0]);
+  const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
+  if (project.mode !== "bundle") throw new Error("build only applies to bundle projects");
+  if (project.build?.adapter !== "esbuild") throw new Error("Bundle project must declare the esbuild adapter");
+  const buildScript = path.join(projectRoot, "build.mjs");
+  await access(buildScript, constants.F_OK);
+  let output;
+  try {
+    output = execFileSync(process.execPath, [buildScript], { cwd: projectRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (error) {
+    const details = String(error?.stderr || error?.stdout || error?.message || "bundle build failed").trim();
+    throw new Error(`Bundle build failed: ${details}`);
+  }
+  const outputRelative = project.build.output;
+  const outputPath = path.join(projectRoot, outputRelative);
+  const artifactSha256 = createHash("sha256").update(await readFile(outputPath)).digest("hex");
+  const result = { project: project.id, adapter: project.build.adapter, output: outputRelative, sha256: artifactSha256, pass: true };
+  if (json) console.log(JSON.stringify(result, null, 2));
+  else console.log(`${output.trim()}\nBundle: PASS\nArtifact: ${outputRelative}\nSHA-256: ${artifactSha256}`);
 }
 
 function gitOutput(projectRoot, args) {
@@ -412,17 +473,21 @@ async function candidate(args, json) {
   const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
   const validation = await collectProjectValidation(projectRoot);
   const scriptRoot = path.join(projectRoot, "userscripts");
-  const scriptFiles = (await readdir(scriptRoot)).filter((item) => item.endsWith(".user.js"));
-  const scriptFile = scriptFiles.length === 1 ? scriptFiles[0] : null;
+  const scriptFiles = await readdir(scriptRoot).catch((error) => (error?.code === "ENOENT" ? [] : Promise.reject(error)));
+  const directScriptFiles = scriptFiles.filter((item) => item.endsWith(".user.js"));
+  const bundleOutput = project.mode === "bundle" && typeof project.build?.output === "string" ? project.build.output : null;
+  const bundleOutputSafe = bundleOutput && !path.isAbsolute(bundleOutput) && !bundleOutput.split("/").includes("..") && bundleOutput.startsWith("dist/") && bundleOutput.endsWith(".user.js");
+  const artifactRelative = project.mode === "bundle" ? (bundleOutputSafe ? bundleOutput : null) : (directScriptFiles.length === 1 ? path.join("userscripts", directScriptFiles[0]) : null);
   const sourceCommitResult = gitOutput(projectRoot, ["rev-parse", "HEAD"]);
   const gitStatusResult = gitOutput(projectRoot, ["status", "--porcelain"]);
   const sourceCommit = sourceCommitResult.value;
   const gitStatus = gitStatusResult.value;
-  const artifactPath = scriptFile ? path.join(scriptRoot, scriptFile) : null;
-  const artifactSha256 = artifactPath ? createHash("sha256").update(await readFile(artifactPath)).digest("hex") : null;
+  const artifactPath = artifactRelative ? path.join(projectRoot, artifactRelative) : null;
+  const artifactExists = artifactPath ? await access(artifactPath, constants.F_OK).then(() => true).catch(() => false) : false;
+  const artifactSha256 = artifactExists ? createHash("sha256").update(await readFile(artifactPath)).digest("hex") : null;
   const checks = [
     { id: "project-validation", status: validation.pass ? "PASS" : "FAIL" },
-    { id: "single-artifact", status: scriptFile ? "PASS" : "FAIL" },
+    { id: "single-artifact", status: artifactExists ? "PASS" : "FAIL" },
     { id: "git-source-commit", status: sourceCommit ? "PASS" : "FAIL" },
     { id: "git-clean", status: gitStatus === "" ? "PASS" : "FAIL" },
     { id: "artifact-sha256", status: artifactSha256 ? "PASS" : "FAIL" },
@@ -441,7 +506,7 @@ async function candidate(args, json) {
     probe: "candidate",
     ...(sourceCommit ? { sourceCommit } : {}),
     artifact: {
-      ...(scriptFile ? { path: `projects/${project.id}/userscripts/${scriptFile}` } : {}),
+      ...(artifactRelative ? { path: `projects/${project.id}/${artifactRelative}` } : {}),
       ...(artifactSha256 ? { sha256: artifactSha256 } : {}),
     },
     environment: {
@@ -470,6 +535,7 @@ async function main() {
   if (command === "validate") return validate(json);
   if (command === "validate-project") return validateProject(rest, json);
   if (command === "validate-evidence") return validateEvidence(rest, json);
+  if (command === "build") return buildProject(rest, json);
   if (command === "new") return newProject(rest, json);
   if (command === "candidate") return candidate(rest, json);
   if (command === "status") return status(json);

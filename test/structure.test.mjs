@@ -65,6 +65,25 @@ test("structured evidence schema accepts explicit PASS and BLOCKED results", asy
   }), true);
 });
 
+test("bundle projects require the readable esbuild adapter", async () => {
+  const schema = JSON.parse(await read("schemas/project.schema.json"));
+  const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+  const project = {
+    schemaVersion: 1,
+    id: "bundle-fixture",
+    name: "Bundle Fixture",
+    description: "Bundle fixture",
+    mode: "bundle",
+    build: { adapter: "esbuild", entry: "src/index.ts", output: "dist/bundle-fixture.user.js", minify: false },
+    targets: { matches: ["https://example.com/*"], requiredVerification: ["local-static"] },
+    permissions: { grants: [], connect: [], justifications: {} },
+    release: { githubRepository: "https://github.com/example/bundle-fixture", greasyForkRequired: false },
+  };
+  assert.equal(validate(project), true);
+  assert.equal(validate({ ...project, build: { ...project.build, minify: true } }), false);
+  assert.match(await read("cli/forge.mjs"), /build <path> \[--json\]/);
+});
+
 test("capability registry keeps verified and unverified platforms explicit", async () => {
   const registry = JSON.parse(await read("registry/capabilities.json"));
   const byId = new Map(registry.capabilities.map((item) => [item.id, item]));
