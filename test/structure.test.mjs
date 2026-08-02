@@ -133,7 +133,15 @@ test("bundle projects require the readable esbuild adapter", async () => {
     description: "Bundle fixture",
     mode: "bundle",
     build: { adapter: "esbuild", entry: "src/index.ts", output: "dist/bundle-fixture.user.js", minify: false },
-    targets: { matches: ["https://example.com/*"], requiredVerification: ["local-static"] },
+    targets: {
+      matches: ["https://example.com/*"],
+      requiredVerification: ["local-static"],
+      mobileVerification: {
+        installPath: "/test-pages/install.html",
+        smoke: { url: "https://example.com/smoke", requiredText: ["fixture"] },
+        requiredChecks: ["firefox-launched", "manager-injection"],
+      },
+    },
     permissions: { grants: [], connect: [], justifications: {} },
     release: { githubRepository: "https://github.com/example/bundle-fixture", greasyForkRequired: false },
   };

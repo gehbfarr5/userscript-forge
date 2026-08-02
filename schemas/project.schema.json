@@ -27,7 +27,25 @@
       "required": ["matches", "requiredVerification"],
       "properties": {
         "matches": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-        "requiredVerification": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" } }
+        "requiredVerification": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" } },
+        "mobileVerification": {
+          "type": "object",
+          "required": ["installPath", "smoke", "requiredChecks"],
+          "properties": {
+            "installPath": { "type": "string", "pattern": "^/" },
+            "smoke": {
+              "type": "object",
+              "required": ["url", "requiredText"],
+              "properties": {
+                "url": { "type": "string", "pattern": "^https?://[^\\s]+$" },
+                "requiredText": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+              },
+              "additionalProperties": false
+            },
+            "requiredChecks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": true
     },

@@ -30,6 +30,8 @@ pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.j
 4. 打开 `http://10.0.2.2:<port>/test-pages/smoke.html`，结构化断言必须观察到 `Injection: PASS`、管理器名称和 `GM storage: AVAILABLE`。
 4. 结果默认写入工作区外的 `private/evidence/userscript-environment-check/android-emulator-manager/<run-id>/result.json`（也可用 `--evidence-path` 显式指定私密路径），使用中央 `schemas/result.schema.json` 和 `validate-evidence` 校验；结果必须绑定 canary 提交和 SHA-256。每次运行独立留档，不覆盖历史结果。
 
+真实脚本不应复制 canary 的项目路径。可在项目 `userscript.project.json` 的 `targets.mobileVerification` 中声明 `/test-pages/install.html`、公开目标 smoke URL、Appium 页面源中可观察的 `requiredText` 和该项目实际需要的 `requiredChecks`；`forge mobile-handoff` 会将当前项目候选绑定到这些值。没有这个声明时，handoff 才使用本目录的 canary 默认 fixture。
+
 建议检查 ID：`firefox-launched`、`manager-install-surface`、`script-installed`、`manager-injection`、`gm-storage`。结果必须按 `userscript-canary.manifest.json` 的 `requiredChecks` 完整覆盖；不要写入设备 serial、局域网地址、Firefox profile 或登录态到公开仓库。
 
 模拟器外部结果的 `probe` 必须为 `android-emulator-manager`，`environment.target` 必须为 `android-emulator-firefox-manager`；中央 `validate-evidence` 会拒绝缺少任一必需检查或任一检查不是 `PASS` 的结果。

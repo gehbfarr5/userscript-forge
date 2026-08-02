@@ -86,6 +86,26 @@ function mobileManifestForEvidence(evidence, manifests) {
   return null;
 }
 
+async function mobileManifestForEvidenceWithProject(evidence, manifests) {
+  const baseManifest = mobileManifestForEvidence(evidence, manifests);
+  if (!baseManifest || !evidence?.project) return baseManifest;
+  const projectPath = path.resolve(ROOT, "..", "projects", evidence.project, "userscript.project.json");
+  let project;
+  try {
+    project = JSON.parse(await readFile(projectPath, "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return baseManifest;
+    throw error;
+  }
+  const configuration = project.targets?.mobileVerification;
+  if (!configuration) return baseManifest;
+  return {
+    ...baseManifest,
+    requiredChecks: configuration.requiredChecks,
+    paths: { ...baseManifest.paths, install: configuration.installPath },
+  };
+}
+
 function nodeMajor() {
   return Number(process.versions.node.split(".")[0]);
 }
@@ -467,6 +487,8 @@ async function newProject(args, json) {
     "README.md": generatedReadme(options),
     ".github/workflows/ci.yml": projectWorkflow(options),
     ".gitignore": "node_modules/\n.pnpm-store/\n.playwright-cli/\n.DS_Store\n",
+    "test-pages/install.html": `<!doctype html>\n<html lang="en">\n  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${options.name} — Install</title></head>\n  <body><main data-userscript-forge-fixture><h1>Install userscript</h1><a id="userscript-install" href="../dist/${options.id}.user.js">Install ${options.name}</a></main></body>\n</html>\n`,
+    "test-pages/smoke.html": `<!doctype html>\n<html lang="en">\n  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${options.name} — Smoke fixture</title></head>\n  <body><main data-userscript-forge-fixture><h1>${options.name} smoke fixture</h1><p>Configure targets.mobileVerification for a real target smoke URL.</p></main></body>\n</html>\n`,
     "package.json": JSON.stringify(packageJson, null, 2) + "\n",
     "pnpm-workspace.yaml": "allowBuilds:\n  esbuild: true\n",
     "userscript.project.json": JSON.stringify(manifest, null, 2) + "\n",
@@ -477,6 +499,8 @@ async function newProject(args, json) {
     "README.md": generatedReadme(options),
     ".github/workflows/ci.yml": projectWorkflow(options),
     ".gitignore": "node_modules/\ndist/\n.playwright-cli/\n.DS_Store\n",
+    "test-pages/install.html": `<!doctype html>\n<html lang="en">\n  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${options.name} — Install</title></head>\n  <body><main data-userscript-forge-fixture><h1>Install userscript</h1><a id="userscript-install" href="../userscripts/${options.id}.user.js">Install ${options.name}</a></main></body>\n</html>\n`,
+    "test-pages/smoke.html": `<!doctype html>\n<html lang="en">\n  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${options.name} — Smoke fixture</title></head>\n  <body><main data-userscript-forge-fixture><h1>${options.name} smoke fixture</h1><p>Configure targets.mobileVerification for a real target smoke URL.</p></main></body>\n</html>\n`,
     "package.json": JSON.stringify(packageJson, null, 2) + "\n",
     "userscript.project.json": JSON.stringify(manifest, null, 2) + "\n",
     [`userscripts/${options.id}.user.js`]: `${metadataLines(options)}(() => {\n  "use strict";\n\n  // TODO: implement the requested behavior after the local target fixture exists.\n})();\n`,
@@ -491,6 +515,7 @@ async function newProject(args, json) {
     }
     await mkdir(path.join(projectRoot, "userscripts"), { recursive: true });
     await mkdir(path.join(projectRoot, "tests"), { recursive: true });
+    await mkdir(path.join(projectRoot, "test-pages"), { recursive: true });
     await writeFile(path.join(projectRoot, "LICENSE"), await readFile(path.join(ROOT, "LICENSE"), "utf8"));
     for (const [relativePath, contents] of Object.entries(files)) {
       const destination = path.join(projectRoot, relativePath);
@@ -639,7 +664,7 @@ async function validateEvidence(args, json) {
   };
   const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
   const validator = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
-  const result = inspectEvidence(evidence, validator, evidencePath, mobileManifestForEvidence(evidence, mobileManifests));
+  const result = inspectEvidence(evidence, validator, evidencePath, await mobileManifestForEvidenceWithProject(evidence, mobileManifests));
  if (json) console.log(JSON.stringify(result, null, 2));
  else {
    console.log(`Schema: ${result.schemaValid ? "PASS" : "FAIL"}`);
@@ -697,7 +722,7 @@ async function recordCapability(args, json) {
     oneplus: await loadMobileManifest("oneplus"),
   };
   const validator = new Ajv2020({ allErrors: true, strict: false }).compile(evidenceSchema);
-  const mobileManifest = mobileManifestForEvidence(evidence, mobileManifests);
+  const mobileManifest = await mobileManifestForEvidenceWithProject(evidence, mobileManifests);
   const inspection = inspectEvidence(evidence, validator, evidencePath, mobileManifest);
   if (!inspection.pass) throw new Error(`Evidence validation failed: ${JSON.stringify(inspection)}`);
   if (!capabilityProbeMatches(capabilityId, evidence.probe)) {
@@ -808,7 +833,7 @@ async function releaseCheck(args, json) {
     let evidence;
     try { evidence = JSON.parse(await readFile(evidencePath, "utf8")); }
     catch (error) { addCheck(`${kind}-evidence-readable`, "FAIL", { error: String(error?.message || error) }); continue; }
-    const inspection = inspectEvidence(evidence, validator, evidencePath, mobileManifestForEvidence(evidence, mobileManifests));
+    const inspection = inspectEvidence(evidence, validator, evidencePath, await mobileManifestForEvidenceWithProject(evidence, mobileManifests));
     addCheck(`${kind}-evidence-schema`, inspection.pass ? "PASS" : "FAIL", inspection);
     addCheck(`${kind}-probe`, releaseEvidenceProbeMatches(kind, evidence.probe) ? "PASS" : "FAIL", {
       expected: kind === "manager"
@@ -1224,7 +1249,6 @@ async function mobileHandoff(args, json) {
   const manifestSchema = await loadJson("schemas/mobile-userscript-probe.schema.json");
   const manifestValidator = new Ajv2020({ allErrors: true, strict: false }).compile(manifestSchema);
   if (!manifestValidator(manifest)) throw new Error(`Mobile userscript probe manifest is invalid: ${JSON.stringify(manifestValidator.errors)}`);
-  if (manifest.project !== project.id) throw new Error(`Mobile probe manifest targets '${manifest.project}', not '${project.id}'`);
   const validation = await collectProjectValidation(projectRoot);
   if (!validation.pass) throw new Error("Project validation failed; mobile-handoff stopped");
   const candidatePath = evidencePathFromArg(options.candidate);
@@ -1240,12 +1264,33 @@ async function mobileHandoff(args, json) {
   if (candidate.project !== project.id || candidate.sourceCommit !== sourceCommit || candidate.artifact?.sha256 !== artifactSha256) {
     throw new Error("Candidate evidence does not match the current project commit and artifact SHA-256");
   }
-  const manifestArtifactRelative = manifest.artifact.relativePath.replace(`projects/${project.id}/`, "");
-  if (artifactRelative !== manifestArtifactRelative) {
-    throw new Error(`Mobile probe artifact '${manifest.artifact.relativePath}' does not match project artifact '${artifactRelative}'`);
-  }
   const version = releaseVersion(await readFile(artifactPath, "utf8"));
   const base = options.target === "emulator" ? `http://${manifest.target.hostMapping}:${options.port}` : options.baseUrl;
+  const mobileVerification = project.targets?.mobileVerification;
+  if (mobileVerification) {
+    const requiredMobileChecks = new Set(mobileVerification.requiredChecks || []);
+    for (const required of ["firefox-launched", "manager-install-surface", "script-installed", "manager-injection"]) {
+      if (!requiredMobileChecks.has(required)) throw new Error(`targets.mobileVerification.requiredChecks must include '${required}'`);
+    }
+    if (!mobileVerification.installPath || !mobileVerification.smoke?.url || !Array.isArray(mobileVerification.smoke.requiredText) || !mobileVerification.smoke.requiredText.length) {
+      throw new Error("targets.mobileVerification requires installPath, smoke.url, and at least one smoke.requiredText marker");
+    }
+    const smokeUrl = new URL(mobileVerification.smoke.url);
+    if (!['http:', 'https:'].includes(smokeUrl.protocol) || smokeUrl.username || smokeUrl.password) {
+      throw new Error("targets.mobileVerification.smoke.url must be an http(s) URL without credentials");
+    }
+  }
+  const requiredChecks = mobileVerification?.requiredChecks ?? manifest.requiredChecks;
+  const smokeAssertions = mobileVerification?.smoke?.requiredText?.length
+    ? { requiredText: mobileVerification.smoke.requiredText }
+    : undefined;
+  const installPath = mobileVerification?.installPath ?? manifest.paths.install;
+  const smokePath = mobileVerification?.smoke?.url
+    ? new URL(mobileVerification.smoke.url)
+    : new URL(manifest.paths.smoke, base);
+  smokePath.searchParams.set("v", version);
+  const evidenceDirectorySuffix = manifest.evidence.relativeDirectory.split("/").slice(3).join("/");
+  const evidenceDirectory = `private/evidence/${project.id}/${evidenceDirectorySuffix}`;
   const result = {
     schemaVersion: 1,
     status: "PASS",
@@ -1261,10 +1306,11 @@ async function mobileHandoff(args, json) {
     },
     handoff: {
       serviceCommand: `python3 probes/mobile/serve.py --directory projects/${project.id} --host 0.0.0.0 --port ${options.port}`,
-      installUrl: `${base}${manifest.paths.install}?v=${encodeURIComponent(version)}`,
-      smokeUrl: `${base}${manifest.paths.smoke}?v=${encodeURIComponent(version)}`,
-      requiredChecks: manifest.requiredChecks,
-      evidenceDirectory: manifest.evidence.relativeDirectory,
+      installUrl: `${base}${installPath}?v=${encodeURIComponent(version)}`,
+      smokeUrl: smokePath.toString(),
+      requiredChecks,
+      ...(smokeAssertions ? { smokeAssertions } : {}),
+      evidenceDirectory,
     },
     checks: [
       { id: "manifest-schema", status: "PASS" },
