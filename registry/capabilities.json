@@ -75,7 +75,7 @@
       "scope": "Public GitHub repository push",
       "status": "PASS",
       "verification": "structured-evidence",
-      "evidenceRunId": "github-release-v012-2026-08-02T09-10-00Z",
+      "evidenceRunId": "github-publish-adapter-v012-2026-08-02T10-01-50Z",
       "note": "Central and canary repositories have public remotes and pushed main branches; canary v0.1.1 and v0.1.2 GitHub Release assets were verified against their exact source commits and SHA-256 values."
     },
     {
