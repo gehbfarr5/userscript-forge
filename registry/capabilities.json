@@ -52,6 +52,14 @@
       "verification": "structured-evidence",
       "evidenceRunId": "greasyfork-first-import-2026-08-02T07-58-00Z",
       "note": "First-import probe reached Greasy Fork without an authenticated session; sign-in in the authorized Chrome profile is required before the two-version publication test."
+    },
+    {
+      "id": "codex-claude-cli-core",
+      "scope": "Codex and Claude local CLI core invocation",
+      "status": "CONDITIONAL_PASS",
+      "verification": "structured-evidence",
+      "evidenceRunId": "agent-cli-availability-2026-08-02T08-04-00Z",
+      "note": "Both CLIs are installed and Claude returned a harmless no-tool response; repository writes, browser automation, mobile execution, and publication remain separate probes."
     }
   ]
 }
