@@ -27,7 +27,7 @@ pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.j
 1. 编排器先按 `~/Desktop/mobile-automation-infra` 的 doctor/runbook 检查 `PLK110_API_36`，只选择 Android emulator + Appium。
 2. 让宿主机的静态服务监听可被模拟器访问的地址，然后在 Firefox 内打开 `http://10.0.2.2:<port>/userscripts/userscript-environment-check.user.js`，完成管理器安装；Android Emulator 的 `10.0.2.2` 是宿主机回环地址映射，不能在模拟器内使用 `127.0.0.1` 代替。若当前移动端管理器无法通过这个本地 URL 安装，结果必须是 `BLOCKED`，不能改用直接 `<script>` 测试冒充注入。
 3. 打开 `http://10.0.2.2:<port>/test-pages/smoke.html`，结构化断言必须观察到 `Injection: PASS`、管理器名称和 `GM storage: AVAILABLE`。
-4. 结果写入工作区外的 `private/evidence/userscript-environment-check/android-emulator-manager/result.json`，使用中央 `schemas/result.schema.json` 和 `validate-evidence` 校验；结果必须绑定 canary 提交和 SHA-256。
+4. 结果默认写入工作区外的 `private/evidence/userscript-environment-check/android-emulator-manager/<run-id>/result.json`（也可用 `--evidence-path` 显式指定私密路径），使用中央 `schemas/result.schema.json` 和 `validate-evidence` 校验；结果必须绑定 canary 提交和 SHA-256。每次运行独立留档，不覆盖历史结果。
 
 建议检查 ID：`firefox-launched`、`manager-install-surface`、`script-installed`、`manager-injection`、`gm-storage`。结果必须按 `userscript-canary.manifest.json` 的 `requiredChecks` 完整覆盖；不要写入设备 serial、局域网地址、Firefox profile 或登录态到公开仓库。
 
