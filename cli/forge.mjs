@@ -954,7 +954,8 @@ function parseMobileHandoffOptions(args) {
     if (!options.baseUrl) throw new Error("mobile-handoff --target oneplus requires --base-url");
     let parsedBaseUrl;
     try { parsedBaseUrl = new URL(options.baseUrl); } catch { throw new Error("--base-url must be a valid http(s) URL"); }
-    if (parsedBaseUrl.protocol !== "http:" || !parsedBaseUrl.hostname) throw new Error("--base-url must be an http URL reachable from the phone; HTTPS requires a separately configured TLS server");
+    if (parsedBaseUrl.protocol !== "http:" || !parsedBaseUrl.hostname || parsedBaseUrl.pathname !== "/" || parsedBaseUrl.search || parsedBaseUrl.hash) throw new Error("--base-url must be an http origin reachable from the phone (for example http://192.168.1.10:8765)");
+    if (!parsedBaseUrl.port || Number(parsedBaseUrl.port) !== options.port) throw new Error(`--base-url must include the same port as --port (${options.port})`);
     if (["localhost", "127.0.0.1", "::1", "10.0.2.2"].includes(parsedBaseUrl.hostname)) throw new Error("--base-url for oneplus must be reachable from the phone, not a loopback/emulator mapping");
   } else if (options.baseUrl) {
     throw new Error("--base-url is only valid with --target oneplus");
