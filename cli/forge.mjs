@@ -17,6 +17,7 @@ const REQUIRED_PATHS = [
   ".gitignore",
   ".node-version",
   "package.json",
+  ".github/workflows/ci.yml",
   "schemas/project.schema.json",
   "schemas/result.schema.json",
   "schemas/capability.schema.json",
@@ -396,6 +397,13 @@ function generatedReadme(options) {
   return `# ${options.name}\n\n${options.description}\n\n- Mode: \`${options.mode}\`\n- Declared matches: ${options.matches.map((match) => `\`${match}\``).join(", ")}\n- Required verification: ${requiredVerification.map((item) => `\`${item}\``).join(", ")}\n- GitHub: ${options.repository}\n- Greasy Fork required: ${options.greasyForkRequired ? "yes" : "no"}\n\n## Local workflow\n\nRun the central project validator before creating a release candidate:\n\n\`\`\`text\npnpm run forge -- validate-project ../projects/${options.id} --json\n\`\`\`\n${bundleSteps}\nThe generated script is a scaffold. Add behavior only after the target matrix and permission reasons are confirmed.\n`;
 }
 
+function projectWorkflow(options) {
+  const verification = options.mode === "bundle"
+    ? `      - name: Set up pnpm\n        uses: pnpm/action-setup@v4\n        with:\n          version: 11.1.1\n      - name: Install dependencies\n        run: pnpm install --no-frozen-lockfile\n      - name: Build readable artifact\n        run: pnpm run build\n      - name: Run project tests\n        run: pnpm test\n      - name: Check bundle syntax\n        run: node --check dist/${options.id}.user.js`
+    : `      - name: Run project tests\n        run: node --test\n      - name: Check userscript syntax\n        run: node --check userscripts/${options.id}.user.js`;
+  return `name: Userscript project CI\n\non:\n  push:\n  pull_request:\n\npermissions:\n  contents: read\n\njobs:\n  verify:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Check out\n        uses: actions/checkout@v4\n      - name: Set up Node 24\n        uses: actions/setup-node@v4\n        with:\n          node-version: 24.18.0\n${verification}\n`;
+}
+
 function regexEscape(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -422,6 +430,7 @@ async function newProject(args, json) {
   };
   const files = bundle ? {
     "README.md": generatedReadme(options),
+    ".github/workflows/ci.yml": projectWorkflow(options),
     ".gitignore": "node_modules/\n.pnpm-store/\n.playwright-cli/\n.DS_Store\n",
     "package.json": JSON.stringify(packageJson, null, 2) + "\n",
     "userscript.project.json": JSON.stringify(manifest, null, 2) + "\n",
@@ -430,6 +439,7 @@ async function newProject(args, json) {
     "tests/source.test.mjs": `import assert from "node:assert/strict";\nimport { readFile } from "node:fs/promises";\nimport test from "node:test";\n\nconst project = JSON.parse(await readFile(new URL("../userscript.project.json", import.meta.url), "utf8"));\nconst source = await readFile(new URL("../src/index.ts", import.meta.url), "utf8");\n\ntest("bundle project declares the central esbuild adapter", () => {\n  assert.equal(project.mode, "bundle");\n  assert.equal(project.build.adapter, "esbuild");\n  assert.equal(project.build.minify, false);\n  assert.match(source, /userscriptForge/);\n});\n`,
   } : {
     "README.md": generatedReadme(options),
+    ".github/workflows/ci.yml": projectWorkflow(options),
     ".gitignore": "node_modules/\ndist/\n.playwright-cli/\n.DS_Store\n",
     "package.json": JSON.stringify(packageJson, null, 2) + "\n",
     "userscript.project.json": JSON.stringify(manifest, null, 2) + "\n",

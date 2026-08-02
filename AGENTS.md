@@ -29,5 +29,6 @@
 - 新脚本优先通过中央 `new` 生成器创建；`direct` 与 `bundle` 都必须使用中央生成器。bundle 必须运行中央 `build` 命令生成不压缩、可审查且纳入 Git 的 `dist/*.user.js`，不能手写或伪造构建结果。
 - 新脚本必须用 `new --verify` 或项目契约明确声明真实必需的验证平台；未声明的平台不自动承诺支持，声明了模拟器/一加目标时发布门禁必须分别提供对应 evidence。
 - `candidate` 生成的 PASS 只是静态候选锁定；必须继续通过管理器、设备和发布门禁，才能进入最终验收。
+- GitHub Actions CI 的通过只表示仓库内静态检查通过；不能把 CI、直接页面测试或通用 Appium backend 当成脚本管理器/真机 PASS。
 - `mobile-handoff` 只生成绑定当前候选的模拟器或一加 15 Firefox 交接信息；一加 15 必须显式提供手机可访问的 `--base-url`。它不执行设备 I/O；外部编排器必须按对应 manifest 的检查 ID 写回独立 `result.json`，不能把 handoff PASS 当作 Firefox/管理器 PASS。
 - `greasyfork-handoff` 只生成绑定当前候选的浏览器发布交接信息，不执行登录、上传或提交；外部编排器必须按 manifest 的检查 ID 写回公开端核对证据，不能把 handoff PASS 当作 Greasy Fork 发布 PASS。

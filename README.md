@@ -32,6 +32,8 @@ pnpm run forge -- publish-github ../projects/my-script --release-evidence ../pri
 
 `new` 是独立项目的统一生成入口。`direct` 生成可读单文件脚本；`bundle` 生成 TypeScript 源码、固定 `esbuild@0.28.1` 构建适配器和可追踪的 `dist/*.user.js` 输出。用可重复的 `--verify <capability-id>` 声明该脚本真正必须支持的平台；例如同时需要 Android 模拟器和一加 15 时分别声明 `android-emulator-firefox-manager` 与 `oneplus-15-firefox-manager`。bundle 候选必须先运行 `build`，再通过项目校验和静态候选锁定。
 
+中央仓库和 `new` 生成的每个独立项目都带最小 GitHub Actions CI：Node 24、项目测试、脚本语法检查；bundle 项目还会构建并检查可读的 `dist/*.user.js`。CI 是辅助信号，不能替代真实脚本管理器、设备或公开平台 evidence。
+
 `candidate` 只锁定“干净 Git 提交 + 静态门禁 + 候选 SHA-256”，并把结果写入私密 evidence；它明确不会把管理器、设备或发布状态提升为已验证。
 
 `mobile-handoff` 是只读的移动用户脚本交接命令：它校验当前候选、版本和 SHA-256，按显式 `--target emulator|oneplus` 输出 Firefox 的安装页、冒烟页、必需检查 ID 和证据目录。模拟器使用 `10.0.2.2`，一加 15 必须显式提供手机可访问的 `--base-url`；命令不会启动 ADB、模拟器、Appium、Firefox 或脚本管理器，运行态必须由仓外编排器执行。

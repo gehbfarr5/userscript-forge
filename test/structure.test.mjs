@@ -15,6 +15,7 @@ async function read(relativePath) {
 test("central scaffold contains the public contract", async () => {
   for (const relativePath of [
     "AGENTS.md",
+    ".github/workflows/ci.yml",
     "CLAUDE.md",
     "schemas/project.schema.json",
     "schemas/result.schema.json",
