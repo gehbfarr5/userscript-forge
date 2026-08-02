@@ -100,4 +100,6 @@ test("capability registry keeps verified and unverified platforms explicit", asy
   assert.equal(byId.get("desktop-tampermonkey-manager")?.status, "PASS");
   assert.equal(byId.get("android-emulator-firefox-manager")?.status, "NOT_RUN");
   assert.equal(byId.get("iphone-safari-stay")?.status, "NOT_RUN");
+  assert.equal(byId.get("codex-cli-readonly-contract")?.status, "PASS");
+  assert.equal(byId.get("claude-cli-readonly-auth")?.status, "BLOCKED");
 });
