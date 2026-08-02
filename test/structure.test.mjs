@@ -58,7 +58,7 @@ test("runtime contract is pinned to Node 24 and pnpm 11.1.1", async () => {
 
 test("central repository has a public remote", async () => {
   const gitConfig = await read(".git/config");
-  assert.match(gitConfig, /url = https:\/\/github\.com\/[^\s]+\/userscript-forge\.git/);
+  assert.match(gitConfig, /url = https:\/\/github\.com\/[^\s]+\/userscript-forge(?:\.git)?(?:\n|$)/);
 });
 
 test("structured evidence schema accepts explicit PASS and BLOCKED results", async () => {
