@@ -176,5 +176,5 @@ test("capability registry keeps verified and unverified platforms explicit", asy
   assert.equal(byId.get("ios-simulator-appium-backend")?.status, "PASS");
   assert.equal(byId.get("iphone-real-appium-backend")?.status, "BLOCKED");
   assert.equal(byId.get("codex-cli-readonly-contract")?.status, "PASS");
-  assert.equal(byId.get("claude-cli-readonly-auth")?.status, "BLOCKED");
+  assert.equal(byId.get("claude-cli-readonly-auth")?.status, "PASS");
 });

@@ -105,10 +105,10 @@
     {
       "id": "claude-cli-readonly-auth",
       "scope": "Claude Code CLI authenticated local read-only invocation",
-      "status": "BLOCKED",
+      "status": "PASS",
       "verification": "structured-evidence",
-      "evidenceRunId": "claude-cli-auth-2026-08-02T09-45-45Z",
-      "note": "The Claude CLI binary is installed, but this shell session reported Not logged in; no login or token action was attempted."
+      "evidenceRunId": "claude-cli-readonly-2026-08-02T13-14-08Z",
+      "note": "Current evidence: agent-cli-claude-readonly PASS. Previous runs remain in private evidence."
     }
   ]
 }
