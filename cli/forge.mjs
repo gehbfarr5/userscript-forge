@@ -27,6 +27,7 @@ const REQUIRED_PATHS = [
 ];
 
 function usage() {
+  console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--github/--greasyfork evidence paths");
   console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n`);
 }
 
@@ -358,34 +359,138 @@ async function newProject(args, json) {
   else console.log(`Created ${projectRoot}\nRun: pnpm run forge -- validate-project ../projects/${options.id} --json`);
 }
 
-async function validateEvidence(args, json) {
-  const evidencePath = evidencePathFromArg(args[0]);
-  const schema = await loadJson("schemas/result.schema.json");
-  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  const validate = ajv.compile(schema);
-  const schemaValid = validate(evidence);
+function inspectEvidence(evidence, validator, evidencePath) {
+  const schemaValid = validator(evidence);
   const checks = Array.isArray(evidence.checks) ? evidence.checks : [];
   const ids = checks.map((check) => check.id);
   const uniqueCheckIds = new Set(ids).size === ids.length;
   const passStatusHasOnlyPassChecks = evidence.status !== "PASS" || checks.every((check) => check.status === "PASS");
-  const result = {
+  return {
     path: path.relative(path.resolve(ROOT, ".."), evidencePath),
     schemaValid,
     uniqueCheckIds,
     passStatusHasOnlyPassChecks,
-    errors: validate.errors ?? [],
+    errors: validator.errors ?? [],
     pass: schemaValid && uniqueCheckIds && passStatusHasOnlyPassChecks,
   };
-  if (json) console.log(JSON.stringify(result, null, 2));
-  else {
-    console.log(`Schema: ${result.schemaValid ? "PASS" : "FAIL"}`);
-    console.log(`Unique check ids: ${result.uniqueCheckIds ? "PASS" : "FAIL"}`);
-    console.log(`PASS status integrity: ${result.passStatusHasOnlyPassChecks ? "PASS" : "FAIL"}`);
-    if (result.errors.length) console.log(JSON.stringify(result.errors, null, 2));
-    console.log(`Evidence validate: ${result.pass ? "PASS" : "FAIL"}`);
+}
+
+function parseReleaseCheckOptions(args) {
+  const options = { candidate: null, required: new Set(), evidence: {} };
+  const evidenceOptions = new Map([["--manager", "manager"], ["--device", "device"], ["--github", "github"], ["--greasyfork", "greasyfork"]]);
+  if (!args[0] || args[0].startsWith("--")) throw new Error("release-check requires a project path");
+  options.project = args[0];
+  for (let index = 1; index < args.length; index += 1) {
+    const option = args[index];
+    if (option === "--candidate") {
+      options.candidate = takeOptionValue(args, index, option);
+      index += 1;
+    } else if (option === "--require") {
+      const value = takeOptionValue(args, index, option);
+      index += 1;
+      for (const kind of value.split(",").map((item) => item.trim()).filter(Boolean)) {
+        if (!["manager", "device", "github", "greasyfork"].includes(kind)) throw new Error(`Unknown release evidence kind '${kind}'`);
+        options.required.add(kind);
+      }
+    } else if (evidenceOptions.has(option)) {
+      options.evidence[evidenceOptions.get(option)] = takeOptionValue(args, index, option);
+      index += 1;
+    } else throw new Error(`Unknown release-check option '${option}'`);
   }
-  if (!result.pass) process.exitCode = 1;
+  if (!options.candidate) throw new Error("release-check requires --candidate");
+  if (!options.required.size) throw new Error("release-check requires at least one --require kind");
+  return options;
+}
+
+async function validateEvidence(args, json) {
+  const evidencePath = evidencePathFromArg(args[0]);
+  const schema = await loadJson("schemas/result.schema.json");
+  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  const validator = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+  const result = inspectEvidence(evidence, validator, evidencePath);
+ if (json) console.log(JSON.stringify(result, null, 2));
+ else {
+   console.log(`Schema: ${result.schemaValid ? "PASS" : "FAIL"}`);
+   console.log(`Unique check ids: ${result.uniqueCheckIds ? "PASS" : "FAIL"}`);
+   console.log(`PASS status integrity: ${result.passStatusHasOnlyPassChecks ? "PASS" : "FAIL"}`);
+   if (result.errors.length) console.log(JSON.stringify(result.errors, null, 2));
+   console.log(`Evidence validate: ${result.pass ? "PASS" : "FAIL"}`);
+ }
+ if (!result.pass) process.exitCode = 1;
+}
+
+async function releaseCheck(args, json) {
+  requireSupportedRuntime("release-check");
+  const options = parseReleaseCheckOptions(args);
+  const projectRoot = projectPathFromArg(options.project);
+  const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
+  const evidenceSchema = await loadJson("schemas/result.schema.json");
+  const validator = new Ajv2020({ allErrors: true, strict: false }).compile(evidenceSchema);
+  const checks = [];
+  const addCheck = (id, status, details = undefined) => checks.push({ id, status, ...(details ? { details } : {}) });
+  const validation = await collectProjectValidation(projectRoot);
+  addCheck("project-validation", validation.pass ? "PASS" : "FAIL", validation.checks);
+  const headResult = gitOutput(projectRoot, ["rev-parse", "HEAD"]);
+  const cleanResult = gitOutput(projectRoot, ["status", "--porcelain"]);
+  addCheck("project-git-clean", cleanResult.value === "" ? "PASS" : "FAIL", cleanResult.error ? { error: cleanResult.error } : undefined);
+  const candidatePath = evidencePathFromArg(options.candidate);
+  const candidate = JSON.parse(await readFile(candidatePath, "utf8"));
+  const candidateInspection = inspectEvidence(candidate, validator, candidatePath);
+  addCheck("candidate-evidence-schema", candidateInspection.pass ? "PASS" : "FAIL", candidateInspection);
+  addCheck("candidate-status", candidate.status === "PASS" ? "PASS" : "FAIL", { status: candidate.status });
+  addCheck("candidate-project", candidate.project === project.id ? "PASS" : "FAIL", { expected: project.id, actual: candidate.project });
+  addCheck("candidate-source-commit", Boolean(headResult.value) && candidate.sourceCommit === headResult.value ? "PASS" : "FAIL", { expected: headResult.value, actual: candidate.sourceCommit });
+  const artifactRelative = validation.artifactRelative;
+  const artifactPath = artifactRelative ? path.join(projectRoot, artifactRelative) : null;
+  const currentArtifactSha = artifactPath
+    ? await access(artifactPath, constants.F_OK).then(async () => createHash("sha256").update(await readFile(artifactPath)).digest("hex")).catch(() => null)
+    : null;
+  addCheck("candidate-artifact-sha256", Boolean(currentArtifactSha) && candidate.artifact?.sha256 === currentArtifactSha ? "PASS" : "FAIL", { expected: currentArtifactSha, actual: candidate.artifact?.sha256 });
+  for (const kind of options.required) {
+    const evidenceArgument = options.evidence[kind];
+    if (!evidenceArgument) {
+      addCheck(`${kind}-evidence-present`, "FAIL", { reason: "required evidence path was not supplied" });
+      continue;
+    }
+    const evidencePath = evidencePathFromArg(evidenceArgument);
+    let evidence;
+    try { evidence = JSON.parse(await readFile(evidencePath, "utf8")); }
+    catch (error) { addCheck(`${kind}-evidence-readable`, "FAIL", { error: String(error?.message || error) }); continue; }
+    const inspection = inspectEvidence(evidence, validator, evidencePath);
+    addCheck(`${kind}-evidence-schema`, inspection.pass ? "PASS" : "FAIL", inspection);
+    addCheck(`${kind}-status`, evidence.status === "PASS" ? "PASS" : "FAIL", { status: evidence.status });
+    addCheck(`${kind}-project`, evidence.project === project.id ? "PASS" : "FAIL", { expected: project.id, actual: evidence.project });
+    addCheck(`${kind}-source-commit`, evidence.sourceCommit === candidate.sourceCommit ? "PASS" : "FAIL", { expected: candidate.sourceCommit, actual: evidence.sourceCommit });
+    addCheck(`${kind}-artifact-sha256`, evidence.artifact?.sha256 === candidate.artifact?.sha256 ? "PASS" : "FAIL", { expected: candidate.artifact?.sha256, actual: evidence.artifact?.sha256 });
+  }
+  const status = checks.every((check) => check.status === "PASS") ? "PASS" : "FAIL";
+  const timestamp = new Date().toISOString();
+  const runId = `release-check-${project.id}-${timestamp.replace(/[:.]/g, "-")}`;
+  const evidence = {
+    schemaVersion: 1,
+    runId,
+    status,
+    project: project.id,
+    probe: "release-check",
+    ...(headResult.value ? { sourceCommit: headResult.value } : {}),
+    ...(currentArtifactSha && artifactRelative ? { artifact: { path: `projects/${project.id}/${artifactRelative}`, sha256: currentArtifactSha } } : {}),
+    environment: { requiredEvidence: [...options.required], candidate: path.relative(path.resolve(ROOT, ".."), candidatePath) },
+    checks,
+    notes: [
+      "This is a fail-closed pre-publication gate. It performs no external publication action.",
+      "Every required platform evidence record must be PASS and match the current project commit and artifact SHA-256.",
+    ],
+    startedAt: timestamp,
+    finishedAt: new Date().toISOString(),
+  };
+  const privateEvidenceDir = path.resolve(ROOT, "..", "private", "evidence", project.id, "release-check");
+  await mkdir(privateEvidenceDir, { recursive: true, mode: 0o700 });
+  const evidencePath = path.join(privateEvidenceDir, `${runId}.json`);
+  await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+  const result = { ...evidence, evidencePath: path.relative(path.resolve(ROOT, ".."), evidencePath) };
+  if (json) console.log(JSON.stringify(result, null, 2));
+  else console.log(`Release check: ${status}\nEvidence: ${result.evidencePath}`);
+  if (status !== "PASS") process.exitCode = 1;
 }
 
 async function collectProjectValidation(projectRoot) {
@@ -546,9 +651,10 @@ async function main() {
   const { command, json, rest } = parseArgs(process.argv.slice(2));
   if (command === "doctor") return doctor(json);
   if (command === "validate") return validate(json);
-  if (command === "validate-project") return validateProject(rest, json);
-  if (command === "validate-evidence") return validateEvidence(rest, json);
-  if (command === "build") return buildProject(rest, json);
+ if (command === "validate-project") return validateProject(rest, json);
+ if (command === "validate-evidence") return validateEvidence(rest, json);
+  if (command === "release-check") return releaseCheck(rest, json);
+ if (command === "build") return buildProject(rest, json);
   if (command === "new") return newProject(rest, json);
   if (command === "candidate") return candidate(rest, json);
   if (command === "status") return status(json);

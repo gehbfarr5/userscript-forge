@@ -16,5 +16,6 @@ intake → normalize → implement → check → test → candidate
 - 必需目标不可用时为 `BLOCKED`，不能降级成 `PASS`。
 - 候选版本锁定后禁止重建；测试、安装和发布绑定同一候选哈希。
 - `candidate` 的 PASS 只表示静态候选已绑定干净提交与 SHA-256，不等于真实管理器、设备或双平台发布通过。
+- `release-check` 必须在外部发布前运行；它要求所有声明为必需的管理器、设备和发布平台 evidence 都是 `PASS`，并且绑定同一源码提交和候选 SHA-256。
 - 公开版本不通过删除或降级回滚，修复必须递增版本。
 - `BLOCKED` 表示探针确实运行到能力边界但环境不允许完成；它不能被压低为 `PASS`，也不能被静默跳过。
