@@ -159,7 +159,10 @@ async function status(json) {
   const capabilities = Object.fromEntries(await Promise.all(capabilityRegistry.capabilities.map(async (capability) => {
     const evidence = await findEvidenceByRunId(capability.evidenceRunId);
     const evidenceStatus = evidence?.status ?? null;
-    const status = evidenceStatus && evidenceStatus !== capability.status ? "INCONSISTENT" : capability.status;
+    const evidenceCompatible = !evidenceStatus
+      || (capability.status === "CONDITIONAL_PASS" && ["PASS", "BLOCKED"].includes(evidenceStatus))
+      || evidenceStatus === capability.status;
+    const status = evidenceCompatible ? capability.status : "INCONSISTENT";
     return [capability.id, {
       status,
       registryStatus: capability.status,
