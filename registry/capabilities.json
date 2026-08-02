@@ -15,7 +15,7 @@
       "status": "PASS",
       "verification": "structured-evidence",
       "evidenceRunId": "stage-b-manager-2026-08-02T07-47-25-300Z",
-      "note": "The version 0.1.1 canary installs through Tampermonkey 5.5.0, includes the Android Emulator host match, and injects into the controlled page; GM storage is available."
+      "note": "The version 0.1.1 canary installs through Tampermonkey 5.5.0, includes the Android Emulator host match, and injects into the controlled page; GM storage is available. A later v0.1.2 retry is separately recorded as BLOCKED because the current Chrome session exposed no manager control or injection panel."
     },
     {
       "id": "android-emulator-firefox-manager",
