@@ -14,8 +14,8 @@
       "scope": "Mac Chrome with Tampermonkey",
       "status": "PASS",
       "verification": "structured-evidence",
-      "evidenceRunId": "stage-b-manager-2026-08-02T04-49-32-300Z",
-      "note": "The local canary installs through Tampermonkey 5.5.0 and injects into the controlled page; GM storage is available."
+      "evidenceRunId": "stage-b-manager-2026-08-02T07-47-25-300Z",
+      "note": "The version 0.1.1 canary installs through Tampermonkey 5.5.0, includes the Android Emulator host match, and injects into the controlled page; GM storage is available."
     },
     {
       "id": "android-emulator-firefox-manager",
@@ -43,14 +43,15 @@
       "scope": "Public GitHub repository push",
       "status": "PASS",
       "verification": "repository-state",
-      "note": "Central and canary repositories have public remotes and pushed main branches."
+      "note": "Central and canary repositories have public remotes and pushed main branches; canary v0.1.1 GitHub Release asset and SHA-256 were verified."
     },
     {
       "id": "greasyfork-publication",
       "scope": "Greasy Fork publication and synchronization",
-      "status": "NOT_RUN",
-      "verification": "not-run",
-      "note": "Requires a later logged-in browser capability probe and two-version release test."
+      "status": "BLOCKED",
+      "verification": "structured-evidence",
+      "evidenceRunId": "greasyfork-first-import-2026-08-02T07-58-00Z",
+      "note": "First-import probe reached Greasy Fork without an authenticated session; sign-in in the authorized Chrome profile is required before the two-version publication test."
     }
   ]
 }
