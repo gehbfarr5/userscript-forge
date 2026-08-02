@@ -2,7 +2,7 @@
 
 Userscript Forge 是面向 Codex、Claude 等 Agent 的用户脚本开发、测试和发布控制面。
 
-当前状态：Stage B2 探针已开始。中央仓库、基础设施检查脚本和本机直接浏览器验证已连接公开 GitHub；真实脚本管理器探针目前为 BLOCKED，Greasy Fork、模拟器和真机尚未接入。
+当前状态：Stage B2 桌面门禁已完成。中央仓库、基础设施检查脚本、本机直接浏览器验证和 Tampermonkey 真实注入已连接公开 GitHub；Greasy Fork、模拟器和真机尚未接入。
 
 ## 统一入口
 

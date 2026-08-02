@@ -12,17 +12,17 @@
     {
       "id": "desktop-tampermonkey-manager",
       "scope": "Mac Chrome with Tampermonkey",
-      "status": "BLOCKED",
+      "status": "PASS",
       "verification": "structured-evidence",
-      "evidenceRunId": "stage-b-manager-2026-08-02T03-57-35-023Z",
-      "note": "The current automation surface cannot complete the local manager installation flow, so injection is not claimed."
+      "evidenceRunId": "stage-b-manager-2026-08-02T04-49-32-300Z",
+      "note": "The local canary installs through Tampermonkey 5.5.0 and injects into the controlled page; GM storage is available."
     },
     {
       "id": "android-emulator-firefox-manager",
       "scope": "Android emulator Firefox userscript manager",
       "status": "NOT_RUN",
       "verification": "not-run",
-      "note": "Pending after the desktop manager gate."
+      "note": "Desktop manager gate is complete; Android emulator probe is the next execution gate."
     },
     {
       "id": "oneplus-15-firefox-manager",

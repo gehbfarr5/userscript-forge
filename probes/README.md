@@ -9,7 +9,7 @@
 ## 当前实测摘要
 
 - 基础设施 canary：本机直接浏览器测试 `PASS`。
-- Tampermonkey 5.5 真实管理器探针：`BLOCKED`。测试只使用本地 canary；`.user.js` 导航被识别为下载/安装路径，但当前自动化浏览器没有暴露可完成安装的控制面，因此没有宣称管理器注入成功。
-- Chrome 138+ 的 Tampermonkey 还可能需要启用“Allow User Scripts”或开发者模式；这项设置必须在受控浏览器中实测后才能写入能力矩阵，参考 [Tampermonkey Q209](https://www.tampermonkey.net/faq.php?locale=en&q=Q209)。
+- Tampermonkey 5.5 真实管理器探针：`PASS`。当前 Chrome 已确认启用“允许运行用户脚本”；本地 canary 能打开安装控制并在受控页面注入，GM 存储检查通过。
+- Chrome 138+ 的 Tampermonkey 可能需要启用“Allow User Scripts”或开发者模式；本机设置已完成实测，参考 [Tampermonkey Q209](https://www.tampermonkey.net/faq.php?locale=en&q=Q209)。
 
-管理器探针的 `BLOCKED` 不会阻塞直接脚本静态检查，但会阻止发布候选进入“真实管理器已验证”状态。
+管理器探针的 `PASS` 只覆盖当前 Mac Chrome + Tampermonkey 组合；它不会替代 Android、OnePlus 15、iPhone 或 Greasy Fork 门禁。

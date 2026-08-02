@@ -8,7 +8,7 @@ intake → normalize → implement → check → test → candidate
 → awaiting-user-acceptance
 ```
 
-当前已完成结构检查、静态检查和直接浏览器页面测试；真实脚本管理器探针已运行但为 `BLOCKED`。设备、GitHub 写入和 Greasy Fork 适配器仍需逐项实测后才能标记为支持。
+当前已完成结构检查、静态检查、直接浏览器页面测试和 Mac Chrome + Tampermonkey 5.5.0 的真实 canary 注入；设备、Greasy Fork 适配器和完整发布事务仍需逐项实测后才能标记为支持。
 
 ## 状态原则
 

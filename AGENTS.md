@@ -11,7 +11,7 @@
 
 ## 当前阶段边界
 
-当前是 Stage B2 探针阶段。Stage B1 的本机结构、静态检查和直接浏览器页面测试已完成；真实 Tampermonkey 注入探针已执行但为 BLOCKED，尚未进行模拟器、真机、Greasy Fork 或登录态测试。
+当前是 Stage B2 探针阶段。Stage B1 的本机结构、静态检查和直接浏览器页面测试已完成；Mac Chrome + Tampermonkey 5.5.0 的真实 canary 安装、注入和 GM 存储验证已 PASS，尚未进行模拟器、真机、Greasy Fork 或登录态测试。
 
 运行时基线记录在 `.node-version`，当前固定为 Node 24.18.0；不要用本机更高版本把 `doctor` 的失败改成通过。
 
