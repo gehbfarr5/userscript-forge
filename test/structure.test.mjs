@@ -87,6 +87,9 @@ test("bundle projects require the readable esbuild adapter", async () => {
   const cli = await read("cli/forge.mjs");
   assert.match(cli, /build <path> \[--json\]/);
   assert.match(cli, /release-check <path> \[options\]/);
+  assert.match(cli, /publish-github <path> \[options\]/);
+  assert.match(cli, /release-check PASS evidence record/);
+  assert.match(cli, /release", "create"/);
   assert.match(cli, /Every required platform evidence record must be PASS/);
   assert.match(cli, /@description  " \+ project\.description/);
   assert.match(cli, /requires Node >=24 <25/);

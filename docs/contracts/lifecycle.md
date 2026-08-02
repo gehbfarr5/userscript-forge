@@ -21,3 +21,4 @@ intake → normalize → implement → check → test → candidate
 - 移动 UI 运行态由仓外编排器执行；中央仓库的移动辅助工具只准备候选服务、校验显式设备目标和打开 URL，不能凭导航成功或人工描述产生 `PASS`。
 - 公开版本不通过删除或降级回滚，修复必须递增版本。
 - `BLOCKED` 表示探针确实运行到能力边界但环境不允许完成；它不能被压低为 `PASS`，也不能被静默跳过。
+- `publish-github` 是唯一的 GitHub Release 写入适配器；Greasy Fork 写入必须经过浏览器编排器和独立公开端核对，不能复用 GitHub 的 PASS。

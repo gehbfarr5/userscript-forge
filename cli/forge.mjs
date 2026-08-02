@@ -28,7 +28,7 @@ const REQUIRED_PATHS = [
 
 function usage() {
   console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--github/--greasyfork evidence paths");
-  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n`);
+  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  release-check <path> [options]   Run the fail-closed pre-publication gate\n  publish-github <path> [options] Publish a checked candidate to a GitHub Release\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n\npublish-github options:\n  --release-evidence PATH (required; a matching release-check PASS result)\n  --tag vX.Y.Z --title TEXT --notes TEXT --dry-run\n`);
 }
 
 function parseArgs(argv) {
@@ -544,6 +544,170 @@ async function releaseCheck(args, json) {
   if (status !== "PASS") process.exitCode = 1;
 }
 
+function parsePublishGithubOptions(args) {
+  if (!args[0] || args[0].startsWith("--")) throw new Error("publish-github requires a project path");
+  const options = { project: args[0], releaseEvidence: null, tag: null, title: null, notes: null, dryRun: false };
+  for (let index = 1; index < args.length; index += 1) {
+    const option = args[index];
+    if (option === "--release-evidence") {
+      options.releaseEvidence = takeOptionValue(args, index, option);
+      index += 1;
+    } else if (option === "--tag" || option === "--title" || option === "--notes") {
+      const value = takeOptionValue(args, index, option);
+      index += 1;
+      if (option === "--tag") options.tag = singleLine(value, option);
+      if (option === "--title") options.title = singleLine(value, option);
+      if (option === "--notes") options.notes = singleLine(value, option);
+    } else if (option === "--dry-run") options.dryRun = true;
+    else throw new Error(`Unknown publish-github option '${option}'`);
+  }
+  if (!options.releaseEvidence) throw new Error("publish-github requires --release-evidence");
+  return options;
+}
+
+function sanitizeExternalError(error) {
+  return String(error?.stderr || error?.stdout || error?.message || "external command failed")
+    .replace(/gho_[A-Za-z0-9_\-]+/g, "gho_<redacted>")
+    .trim();
+}
+
+function ghRun(args) {
+  try {
+    return { ok: true, output: execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(), error: null };
+  } catch (error) {
+    return { ok: false, output: String(error?.stdout || "").trim(), error: sanitizeExternalError(error) };
+  }
+}
+
+function githubRepositoryName(repository) {
+  if (typeof repository === "string" && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return repository;
+  let parsed;
+  try { parsed = new URL(repository); }
+  catch { throw new Error("release.githubRepository must be a valid GitHub URL"); }
+  if (parsed.protocol !== "https:" || parsed.hostname !== "github.com") throw new Error("release.githubRepository must use https://github.com");
+  const name = parsed.pathname.replace(/^\/+|\/+$/g, "");
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(name)) throw new Error("release.githubRepository must contain exactly owner/repository");
+  return name;
+}
+
+function releaseVersion(script) {
+  const match = script.match(/@version\s+([^\s]+)/);
+  if (!match || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(match[1])) throw new Error("Userscript artifact must contain a semver @version");
+  return match[1];
+}
+
+function inspectGithubRelease(output, tag, sourceCommit, artifactName, artifactSha256) {
+  let release;
+  try { release = JSON.parse(output); }
+  catch { throw new Error("GitHub release view returned invalid JSON"); }
+  const asset = Array.isArray(release.assets) ? release.assets.find((item) => item.name === artifactName) : null;
+  const checks = [
+    { id: "github-release-tag", status: release.tagName === tag ? "PASS" : "FAIL", details: { expected: tag, actual: release.tagName } },
+    { id: "github-release-target", status: release.targetCommitish === sourceCommit ? "PASS" : "FAIL", details: { expected: sourceCommit, actual: release.targetCommitish } },
+    { id: "github-release-asset", status: asset?.state === "uploaded" ? "PASS" : "FAIL", details: { name: artifactName, state: asset?.state ?? null } },
+    { id: "github-release-asset-sha256", status: asset?.digest === `sha256:${artifactSha256}` ? "PASS" : "FAIL", details: { expected: `sha256:${artifactSha256}`, actual: asset?.digest ?? null } },
+  ];
+  return { release, asset, checks, pass: checks.every((check) => check.status === "PASS") };
+}
+
+async function publishGithub(args, json) {
+  requireSupportedRuntime("publish-github");
+  const options = parsePublishGithubOptions(args);
+  const projectRoot = projectPathFromArg(options.project);
+  const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
+  const validation = await collectProjectValidation(projectRoot);
+  if (!validation.pass) throw new Error("Project validation failed; publish-github stopped");
+  const headResult = gitOutput(projectRoot, ["rev-parse", "HEAD"]);
+  const cleanResult = gitOutput(projectRoot, ["status", "--porcelain"]);
+  if (!headResult.value || cleanResult.value !== "") throw new Error("publish-github requires a clean Git worktree with a source commit");
+  const candidateArtifactPath = validation.artifactRelative ? path.join(projectRoot, validation.artifactRelative) : null;
+  if (!candidateArtifactPath) throw new Error("publish-github requires one validated userscript artifact");
+  const artifact = await readFile(candidateArtifactPath, "utf8");
+  const artifactSha256 = createHash("sha256").update(artifact).digest("hex");
+  const artifactName = path.basename(candidateArtifactPath);
+  const version = releaseVersion(artifact);
+  const tag = options.tag ?? `v${version}`;
+  if (tag !== `v${version}`) throw new Error(`GitHub tag '${tag}' must match artifact version v${version}`);
+  const repository = githubRepositoryName(project.release?.githubRepository);
+  const evidencePath = evidencePathFromArg(options.releaseEvidence);
+  const evidenceSchema = await loadJson("schemas/result.schema.json");
+  const releaseEvidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  const validator = new Ajv2020({ allErrors: true, strict: false }).compile(evidenceSchema);
+  const inspection = inspectEvidence(releaseEvidence, validator, evidencePath);
+  if (!inspection.pass || releaseEvidence.status !== "PASS" || releaseEvidence.probe !== "release-check") throw new Error("publish-github requires a valid release-check PASS evidence record");
+  if (releaseEvidence.project !== project.id || releaseEvidence.sourceCommit !== headResult.value || releaseEvidence.artifact?.sha256 !== artifactSha256) {
+    throw new Error("release-check evidence does not match the current project commit and artifact SHA-256");
+  }
+  const auth = ghRun(["auth", "status", "--hostname", "github.com"]);
+  if (!auth.ok) throw new Error(`GitHub CLI authentication failed: ${auth.error}`);
+  const title = options.title ?? `${project.name} v${version}`;
+  const notes = options.notes ?? "Automated release after a passing Userscript Forge release-check.";
+  const existing = ghRun(["release", "view", tag, "--repo", repository, "--json", "tagName,targetCommitish,assets,url"]);
+  const releaseMissing = !existing.ok && /not found|404|no release/i.test(existing.error ?? "");
+  if (!existing.ok && !releaseMissing) throw new Error(`GitHub release lookup failed: ${existing.error}`);
+  if (existing.ok) {
+    const inspected = inspectGithubRelease(existing.output, tag, headResult.value, artifactName, artifactSha256);
+    if (!inspected.pass) throw new Error(`Existing GitHub release '${tag}' does not match the locked candidate`);
+    const result = {
+      status: options.dryRun ? "DRY_RUN" : "PASS",
+      action: "already-present",
+      project: project.id,
+      repository,
+      tag,
+      sourceCommit: headResult.value,
+      artifact: { path: `projects/${project.id}/${validation.artifactRelative}`, sha256: artifactSha256 },
+      releaseUrl: inspected.release.url,
+      checks: inspected.checks,
+      note: "No external write was needed because the exact release and asset already exist.",
+    };
+    if (json) console.log(JSON.stringify(result, null, 2)); else console.log(`GitHub publish: ${result.status}\nAction: already-present\nRelease: ${result.releaseUrl}`);
+    return;
+  }
+  if (options.dryRun) {
+    const result = {
+      status: "DRY_RUN",
+      action: "would-create",
+      project: project.id,
+      repository,
+      tag,
+      sourceCommit: headResult.value,
+      artifact: { path: `projects/${project.id}/${validation.artifactRelative}`, sha256: artifactSha256 },
+      checks: [{ id: "github-release-absent", status: "PASS" }],
+      note: "Dry-run performed no GitHub write and produced no PASS publication evidence.",
+    };
+    if (json) console.log(JSON.stringify(result, null, 2)); else console.log(`GitHub publish: DRY_RUN\nWould create: ${repository} ${tag}`);
+    return;
+  }
+  const create = ghRun(["release", "create", tag, candidateArtifactPath, "--repo", repository, "--target", headResult.value, "--title", title, "--notes", notes]);
+  if (!create.ok) throw new Error(`GitHub release creation failed: ${create.error}`);
+  const published = ghRun(["release", "view", tag, "--repo", repository, "--json", "tagName,targetCommitish,assets,url"]);
+  if (!published.ok) throw new Error(`GitHub release verification lookup failed: ${published.error}`);
+  const inspected = inspectGithubRelease(published.output, tag, headResult.value, artifactName, artifactSha256);
+  if (!inspected.pass) throw new Error(`GitHub release '${tag}' was created but failed exact commit/asset verification`);
+  const timestamp = new Date().toISOString();
+  const runId = `github-publish-${project.id}-${tag}-${timestamp.replace(/[:.]/g, "-")}`;
+  const publicationEvidence = {
+    schemaVersion: 1,
+    runId,
+    status: "PASS",
+    project: project.id,
+    probe: "github-publish",
+    startedAt: timestamp,
+    finishedAt: new Date().toISOString(),
+    sourceCommit: headResult.value,
+    artifact: { path: `projects/${project.id}/${validation.artifactRelative}`, sha256: artifactSha256 },
+    environment: { provider: "GitHub", repository, tag, releaseUrl: inspected.release.url },
+    checks: inspected.checks,
+    notes: ["GitHub publication used the exact artifact bound by a passing release-check evidence record.", "No private evidence, browser state, credentials, or device data was published."]
+  };
+  const privateEvidenceDir = path.resolve(ROOT, "..", "private", "evidence", project.id, "publication");
+  await mkdir(privateEvidenceDir, { recursive: true, mode: 0o700 });
+  const publicationEvidencePath = path.join(privateEvidenceDir, `${runId}.json`);
+  await writeFile(publicationEvidencePath, `${JSON.stringify(publicationEvidence, null, 2)}\n`, { mode: 0o600 });
+  const result = { ...publicationEvidence, evidencePath: path.relative(path.resolve(ROOT, ".."), publicationEvidencePath) };
+  if (json) console.log(JSON.stringify(result, null, 2)); else console.log(`GitHub publish: PASS\nRelease: ${inspected.release.url}\nEvidence: ${result.evidencePath}`);
+}
+
 async function collectProjectValidation(projectRoot) {
   const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
   const policy = await loadJson("policies/public-boundary.json");
@@ -703,8 +867,9 @@ async function main() {
   if (command === "doctor") return doctor(json);
   if (command === "validate") return validate(json);
  if (command === "validate-project") return validateProject(rest, json);
- if (command === "validate-evidence") return validateEvidence(rest, json);
+  if (command === "validate-evidence") return validateEvidence(rest, json);
   if (command === "release-check") return releaseCheck(rest, json);
+  if (command === "publish-github") return publishGithub(rest, json);
  if (command === "build") return buildProject(rest, json);
   if (command === "new") return newProject(rest, json);
   if (command === "candidate") return candidate(rest, json);

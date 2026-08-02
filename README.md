@@ -19,6 +19,7 @@ pnpm run forge -- new my-bundle --mode bundle --name "My Bundle" --description "
 pnpm run forge -- build ../projects/my-bundle --json
 pnpm run forge -- candidate ../projects/my-script --json
 pnpm run forge -- release-check ../projects/my-script --candidate ../private/evidence/<project>/candidate/<run>.json --require manager,github,greasyfork --manager ../private/evidence/<project>/<manager-run>.json --github ../private/evidence/<project>/<github-run>.json --greasyfork ../private/evidence/<project>/<greasyfork-run>.json --json
+pnpm run forge -- publish-github ../projects/my-script --release-evidence ../private/evidence/<project>/release-check/<run>.json --dry-run --json
 ```
 
 中央 CLI、Schema 和策略是流程的权威来源。Agent 专属文件只负责告诉 Agent 如何调用中央命令，不重复定义质量门禁。
@@ -30,6 +31,8 @@ pnpm run forge -- release-check ../projects/my-script --candidate ../private/evi
 `candidate` 只锁定“干净 Git 提交 + 静态门禁 + 候选 SHA-256”，并把结果写入私密 evidence；它明确不会把管理器、设备或发布状态提升为已验证。
 
 `release-check` 是发布前的 fail-closed 总门禁。它不会发布或修改外部平台，只接受私密 evidence，并要求每个 `--require` 平台记录都是 `PASS`，且项目、源码提交和候选 SHA-256 完全一致。缺少、过期或 `BLOCKED` 的证据都会阻止后续发布。
+
+`publish-github` 是 GitHub Release 适配器：它只接受当前项目、提交、候选 SHA-256 全部匹配的 `release-check PASS`，并在发布后重新读取 GitHub Release，核对 tag、目标提交、资产状态和远端 SHA-256。`--dry-run` 不执行写入；已有完全匹配的 Release 可幂等通过。Greasy Fork 仍由已登录浏览器编排器处理，不假设存在写入 API。
 
 `status` 读取脱敏能力登记及其 evidenceRunId，不再固定读取某一次历史 canary；因此历史重试不会覆盖当前验证结果。移动探针的 `probes/mobile/serve.py` 和 `open-firefox-url.sh` 只负责准备候选文件、导航到 Firefox 和做目标类型保护，实际安装/更新按钮及注入结果仍由仓外 Appium/Computer Use 编排器断言。
 
