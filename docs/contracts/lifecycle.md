@@ -8,7 +8,7 @@ intake → normalize → implement → check → test → candidate
 → awaiting-user-acceptance
 ```
 
-当前已完成结构检查、静态检查、直接浏览器页面测试、Mac Chrome + Tampermonkey 5.5.0 的 v0.1.2 canary 注入和 GitHub v0.1.2 资产核对；Android、OnePlus 15、iPhone、Greasy Fork 首次发布和完整双平台发布事务仍需逐项实测后才能标记为支持。
+当前已完成结构检查、静态检查、直接浏览器页面测试、Mac Chrome + Tampermonkey 5.5.0 的 v0.1.3 canary 注入、GitHub v0.1.3 资产核对，以及通过已登录浏览器完成 Greasy Fork v0.1.2 首次导入和 v0.1.3 第二版本公开同步；Android、OnePlus 15、iPhone 用户脚本门禁和真实样板仍需逐项实测后才能标记为支持。
 
 ## 状态原则
 
