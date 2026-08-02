@@ -25,6 +25,14 @@
       "note": "Desktop manager gate is complete; Android emulator probe is the next execution gate."
     },
     {
+      "id": "android-emulator-appium-backend",
+      "scope": "Android emulator Appium UI backend",
+      "status": "PASS",
+      "verification": "structured-evidence",
+      "evidenceRunId": "android-emulator-appium-2026-08-02T09-50-00Z",
+      "note": "Generic emulator boot, Appium session, UI tree/input, screenshot, and cleanup passed; this does not prove Firefox/Tampermonkey injection."
+    },
+    {
       "id": "oneplus-15-firefox-manager",
       "scope": "OnePlus 15 Firefox userscript manager",
       "status": "NOT_RUN",
@@ -32,11 +40,35 @@
       "note": "Physical-device acceptance remains a later gate."
     },
     {
+      "id": "oneplus-15-appium-backend",
+      "scope": "OnePlus 15 Appium UI backend",
+      "status": "PASS",
+      "verification": "structured-evidence",
+      "evidenceRunId": "oneplus-real-appium-2026-08-02T09-50-10Z",
+      "note": "Generic OnePlus Appium path passed after the documented cached-app-freezer fix; this does not prove Firefox/Tampermonkey injection."
+    },
+    {
       "id": "iphone-safari-stay",
       "scope": "iPhone Safari with Stay",
       "status": "NOT_RUN",
       "verification": "not-run",
       "note": "Deferred until the iPhone automation configuration is ready."
+    },
+    {
+      "id": "ios-simulator-appium-backend",
+      "scope": "iOS Simulator Appium UI backend",
+      "status": "PASS",
+      "verification": "structured-evidence",
+      "evidenceRunId": "ios-simulator-appium-2026-08-02T09-50-20Z",
+      "note": "Generic iOS Simulator Appium session, UI tree, screenshot, and cleanup passed; this does not prove Safari/Stay behavior."
+    },
+    {
+      "id": "iphone-real-appium-backend",
+      "scope": "iPhone real-device Appium UI backend",
+      "status": "BLOCKED",
+      "verification": "structured-evidence",
+      "evidenceRunId": "iphone-real-appium-2026-08-02T09-50-30Z",
+      "note": "The installed XCUITest path cannot discover the wirelessly paired device until a classic USB trust/pairing handshake is completed."
     },
     {
       "id": "github-public-repository-push",
