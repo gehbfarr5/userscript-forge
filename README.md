@@ -18,7 +18,8 @@ pnpm run forge -- new my-script --name "My Script" --description "..." --reposit
 pnpm run forge -- new my-bundle --mode bundle --name "My Bundle" --description "..." --repository https://github.com/<owner>/my-bundle --match "https://example.com/*"
 pnpm run forge -- build ../projects/my-bundle --json
 pnpm run forge -- candidate ../projects/my-script --json
-pnpm run forge -- mobile-handoff ../projects/userscript-environment-check --candidate ../private/evidence/<project>/candidate/<run>.json --port 8765 --json
+pnpm run forge -- mobile-handoff ../projects/userscript-environment-check --candidate ../private/evidence/<project>/candidate/<run>.json --target emulator --port 8765 --json
+pnpm run forge -- mobile-handoff ../projects/userscript-environment-check --candidate ../private/evidence/<project>/candidate/<run>.json --target oneplus --base-url http://<phone-reachable-host>:8765 --port 8765 --json
 pnpm run forge -- greasyfork-handoff ../projects/userscript-environment-check --candidate ../private/evidence/<project>/candidate/<run>.json --script-id <ID> --json
 pnpm run forge -- release-check ../projects/my-script --candidate ../private/evidence/<project>/candidate/<run>.json --require manager,github,greasyfork --manager ../private/evidence/<project>/<manager-run>.json --github ../private/evidence/<project>/<github-run>.json --greasyfork ../private/evidence/<project>/<greasyfork-run>.json --json
 pnpm run forge -- publish-github ../projects/my-script --release-evidence ../private/evidence/<project>/release-check/<run>.json --dry-run --json
@@ -32,7 +33,7 @@ pnpm run forge -- publish-github ../projects/my-script --release-evidence ../pri
 
 `candidate` 只锁定“干净 Git 提交 + 静态门禁 + 候选 SHA-256”，并把结果写入私密 evidence；它明确不会把管理器、设备或发布状态提升为已验证。
 
-`mobile-handoff` 是只读的移动用户脚本交接命令：它校验当前候选、版本和 SHA-256，输出模拟器 Firefox 的安装页、冒烟页、必需检查 ID 和证据目录。它不会启动 ADB、模拟器、Appium、Firefox 或脚本管理器；运行态必须由仓外编排器执行。
+`mobile-handoff` 是只读的移动用户脚本交接命令：它校验当前候选、版本和 SHA-256，按显式 `--target emulator|oneplus` 输出 Firefox 的安装页、冒烟页、必需检查 ID 和证据目录。模拟器使用 `10.0.2.2`，一加 15 必须显式提供手机可访问的 `--base-url`；命令不会启动 ADB、模拟器、Appium、Firefox 或脚本管理器，运行态必须由仓外编排器执行。
 
 `greasyfork-handoff` 是只读的 Greasy Fork 浏览器发布交接命令：它校验当前候选、版本和 SHA-256，输出首次创建页、版本更新页、公开脚本页、公开代码页和必需检查 ID。它不会登录、上传或提交表单；浏览器编排器完成后必须写回独立公开端证据。
 

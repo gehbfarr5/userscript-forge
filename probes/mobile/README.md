@@ -31,7 +31,21 @@ pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.j
 
 建议检查 ID：`firefox-launched`、`manager-install-surface`、`script-installed`、`manager-injection`、`gm-storage`。结果必须按 `userscript-canary.manifest.json` 的 `requiredChecks` 完整覆盖；不要写入设备 serial、局域网地址、Firefox profile 或登录态到公开仓库。
 
-外部结果的 `probe` 必须为 `android-emulator-manager`，`environment.target` 必须为 `android-emulator-firefox-manager`；中央 `validate-evidence` 会拒绝缺少任一必需检查或任一检查不是 `PASS` 的结果。
+模拟器外部结果的 `probe` 必须为 `android-emulator-manager`，`environment.target` 必须为 `android-emulator-firefox-manager`；中央 `validate-evidence` 会拒绝缺少任一必需检查或任一检查不是 `PASS` 的结果。
+
+## OnePlus 15 Firefox canary
+
+模拟器用户脚本门禁通过后，使用同一候选文件执行一加 15 真机门禁。中央 handoff 必须显式声明真实目标和手机可访问的宿主机地址；不能把 `10.0.2.2` 或 `localhost` 用在真机上：
+
+```text
+pnpm run forge -- mobile-handoff ../projects/userscript-environment-check \
+  --candidate ../private/evidence/userscript-environment-check/candidate/<candidate>.json \
+  --target oneplus --base-url http://<phone-reachable-host>:8765 --json
+```
+
+仓外执行器仍使用 `scripts/android-emulator-userscript-canary.mjs`，但必须提供 `--target oneplus --serial <explicit-real-serial> --base-url <phone-reachable-host>`；它会先检查显式设备为 `device`、Firefox 已安装、设备型号包含 `PLK110`，再执行同样的安装页、管理器注入和 GM 存储断言。禁止 `--start-emulator`，禁止 emulator serial，禁止 `pm clear`、卸载或修改 Firefox/Tampermonkey 内部存储。
+
+外部结果的 `probe` 必须为 `oneplus-15-firefox-manager`，`environment.target` 必须为 `oneplus-15-firefox-manager`，并默认写入 `private/evidence/userscript-environment-check/oneplus-15-firefox-manager/<run-id>/result.json`；中央 `validate-evidence` 会使用对应 manifest 校验 required checks、候选提交和 SHA-256。
 
 示例（由仓外编排器执行，不在 Codex 沙箱中执行设备 I/O）：
 

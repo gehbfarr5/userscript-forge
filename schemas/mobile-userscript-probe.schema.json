@@ -19,18 +19,36 @@
       "additionalProperties": false
     },
     "target": {
-      "type": "object",
-      "required": ["id", "platform", "stage", "browserPackage", "avd", "serialPolicy", "hostMapping"],
-      "properties": {
-        "id": { "const": "android-emulator-firefox-manager" },
-        "platform": { "const": "android" },
-        "stage": { "const": "emulator" },
-        "browserPackage": { "const": "org.mozilla.firefox" },
-        "avd": { "type": "string", "minLength": 1 },
-        "serialPolicy": { "const": "explicit-emulator-serial" },
-        "hostMapping": { "const": "10.0.2.2" }
-      },
-      "additionalProperties": false
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["id", "platform", "stage", "browserPackage", "avd", "serialPolicy", "hostMapping"],
+          "properties": {
+            "id": { "const": "android-emulator-firefox-manager" },
+            "platform": { "const": "android" },
+            "stage": { "const": "emulator" },
+            "browserPackage": { "const": "org.mozilla.firefox" },
+            "avd": { "type": "string", "minLength": 1 },
+            "serialPolicy": { "const": "explicit-emulator-serial" },
+            "hostMapping": { "const": "10.0.2.2" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["id", "platform", "stage", "browserPackage", "deviceModel", "serialPolicy", "hostMapping"],
+          "properties": {
+            "id": { "const": "oneplus-15-firefox-manager" },
+            "platform": { "const": "android" },
+            "stage": { "const": "real" },
+            "browserPackage": { "const": "org.mozilla.firefox" },
+            "deviceModel": { "const": "PLK110" },
+            "serialPolicy": { "const": "explicit-real-serial" },
+            "hostMapping": { "const": "explicit-host-url" }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "paths": {
       "type": "object",

@@ -29,6 +29,7 @@ test("central scaffold contains the public contract", async () => {
     "probes/mobile/serve.py",
     "probes/mobile/open-firefox-url.sh",
     "probes/mobile/userscript-canary.manifest.json",
+    "probes/mobile/oneplus-userscript.manifest.json",
     "probes/publication/greasyfork.manifest.json",
     "probes/publication/README.md",
   ]) {
@@ -76,13 +77,19 @@ test("structured evidence schema accepts explicit PASS and BLOCKED results", asy
 test("mobile userscript canary manifest is explicit and privacy-safe", async () => {
   const schema = JSON.parse(await read("schemas/mobile-userscript-probe.schema.json"));
   const manifest = JSON.parse(await read("probes/mobile/userscript-canary.manifest.json"));
+  const oneplusManifest = JSON.parse(await read("probes/mobile/oneplus-userscript.manifest.json"));
   const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
   assert.equal(validate(manifest), true);
+  assert.equal(validate(oneplusManifest), true);
   assert.equal(manifest.target.id, "android-emulator-firefox-manager");
   assert.equal(manifest.target.serialPolicy, "explicit-emulator-serial");
   assert.equal(manifest.target.hostMapping, "10.0.2.2");
+  assert.equal(oneplusManifest.target.id, "oneplus-15-firefox-manager");
+  assert.equal(oneplusManifest.target.serialPolicy, "explicit-real-serial");
+  assert.equal(oneplusManifest.target.hostMapping, "explicit-host-url");
   assert.ok(manifest.evidence.forbiddenFields.includes("cookies"));
   assert.ok(manifest.evidence.forbiddenFields.includes("sessionId"));
+  assert.ok(oneplusManifest.evidence.forbiddenFields.includes("udid"));
 });
 
 test("Greasy Fork publication manifest is browser-only and privacy-safe", async () => {
@@ -117,6 +124,7 @@ test("bundle projects require the readable esbuild adapter", async () => {
   assert.match(cli, /release-check <path> \[options\]/);
   assert.match(cli, /publish-github <path> \[options\]/);
   assert.match(cli, /mobile-handoff <path>/);
+  assert.match(cli, /--target emulator\|oneplus/);
   assert.match(cli, /external-orchestrator-required/);
   assert.match(cli, /greasyfork-handoff <path>/);
   assert.match(cli, /release-check PASS evidence record/);

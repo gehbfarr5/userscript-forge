@@ -27,12 +27,13 @@ const REQUIRED_PATHS = [
   "registry/capabilities.json",
   "probes/mobile/README.md",
   "probes/mobile/userscript-canary.manifest.json",
+  "probes/mobile/oneplus-userscript.manifest.json",
   "probes/publication/greasyfork.manifest.json",
   "probes/publication/README.md",
 ];
 
 function usage() {
-  console.log("mobile-handoff <path> --candidate PATH [--port NUMBER]: validate and emit the external mobile userscript handoff");
+  console.log("mobile-handoff <path> --candidate PATH [--target emulator|oneplus] [--base-url URL] [--port NUMBER]: validate and emit the external mobile userscript handoff");
   console.log("greasyfork-handoff <path> --candidate PATH --script-id ID [--base-url URL]: validate and emit the browser publication handoff");
   console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--github/--greasyfork evidence paths");
   console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  release-check <path> [options]   Run the fail-closed pre-publication gate\n  publish-github <path> [options] Publish a checked candidate to a GitHub Release\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n\npublish-github options:\n  --release-evidence PATH (required; a matching release-check PASS result)\n  --tag vX.Y.Z --title TEXT --notes TEXT --dry-run\n`);
@@ -55,6 +56,27 @@ async function exists(relativePath) {
 
 async function loadJson(relativePath) {
   return JSON.parse(await readFile(path.join(ROOT, relativePath), "utf8"));
+}
+
+const MOBILE_MANIFEST_PATHS = {
+  emulator: "probes/mobile/userscript-canary.manifest.json",
+  oneplus: "probes/mobile/oneplus-userscript.manifest.json",
+};
+
+function mobileManifestPath(target) {
+  if (!MOBILE_MANIFEST_PATHS[target]) throw new Error(`Unknown mobile userscript target '${target}'`);
+  return MOBILE_MANIFEST_PATHS[target];
+}
+
+async function loadMobileManifest(target) {
+  return loadJson(mobileManifestPath(target));
+}
+
+function mobileManifestForEvidence(evidence, manifests) {
+  const target = evidence?.environment?.target;
+  if (target === "oneplus-15-firefox-manager" || evidence?.probe === "oneplus-15-firefox-manager") return manifests.oneplus;
+  if (target === "android-emulator-firefox-manager" || evidence?.probe === "android-emulator-manager") return manifests.emulator;
+  return null;
 }
 
 function nodeMajor() {
@@ -124,7 +146,8 @@ async function validate(json) {
   const capabilitySchema = await loadJson("schemas/capability.schema.json");
   const mobileProbeSchema = await loadJson("schemas/mobile-userscript-probe.schema.json");
   const greasyForkProbeSchema = await loadJson("schemas/greasyfork-publication-probe.schema.json");
-  const mobileProbeManifest = await loadJson("probes/mobile/userscript-canary.manifest.json");
+  const mobileProbeManifest = await loadMobileManifest("emulator");
+  const oneplusProbeManifest = await loadMobileManifest("oneplus");
   const greasyForkProbeManifest = await loadJson("probes/publication/greasyfork.manifest.json");
   const capabilities = await loadJson("registry/capabilities.json");
   const capabilityValidator = new Ajv2020({ allErrors: true, strict: false }).compile(capabilitySchema);
@@ -136,7 +159,7 @@ async function validate(json) {
   const checks = {
     schemaFiles: Boolean(projectSchema.$schema && resultSchema.$schema && capabilitySchema.$schema && mobileProbeSchema.$schema && greasyForkProbeSchema.$schema),
     schemaVersions: projectSchema.schemaVersion === 1 && resultSchema.schemaVersion === 1 && capabilitySchema.schemaVersion === 1 && mobileProbeSchema.schemaVersion === 1 && greasyForkProbeSchema.schemaVersion === 1,
-    mobileProbeManifestSchema: mobileProbeValidator(mobileProbeManifest),
+    mobileProbeManifestSchema: mobileProbeValidator(mobileProbeManifest) && mobileProbeValidator(oneplusProbeManifest),
     greasyForkProbeManifestSchema: greasyForkProbeValidator(greasyForkProbeManifest),
     capabilityRegistryVersion: capabilities.schemaVersion === 1 && Array.isArray(capabilities.capabilities),
     capabilityRegistrySchema: capabilityValidator(capabilities),
@@ -147,7 +170,7 @@ async function validate(json) {
     nodeVersionPinned: nodeVersion === "24.18.0",
     noPrivateTree: !(await exists("private")),
   };
-  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs", "registry/capabilities.json", "probes/mobile/userscript-canary.manifest.json", "probes/publication/greasyfork.manifest.json"];
+  const publicFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", ".node-version", "package.json", "cli/forge.mjs", "registry/capabilities.json", "probes/mobile/userscript-canary.manifest.json", "probes/mobile/oneplus-userscript.manifest.json", "probes/publication/greasyfork.manifest.json"];
   const forbidden = [];
   for (const relativePath of publicFiles) {
     const contents = await readFile(path.join(ROOT, relativePath), "utf8");
@@ -434,7 +457,7 @@ function inspectEvidence(evidence, validator, evidencePath, mobileManifest = nul
   const ids = checks.map((check) => check.id);
   const uniqueCheckIds = new Set(ids).size === ids.length;
   const passStatusHasOnlyPassChecks = evidence.status !== "PASS" || checks.every((check) => check.status === "PASS");
-  const isMobileManagerEvidence = evidence.probe === "android-emulator-manager";
+  const isMobileManagerEvidence = ["android-emulator-manager", "oneplus-15-firefox-manager"].includes(evidence.probe);
   const requiredMobileChecks = isMobileManagerEvidence && mobileManifest ? mobileManifest.requiredChecks : [];
   const checksById = new Map(checks.map((check) => [check.id, check]));
   const mobileTargetMatches = !isMobileManagerEvidence || (mobileManifest && evidence.environment?.target === mobileManifest.target.id);
@@ -488,10 +511,13 @@ function parseReleaseCheckOptions(args) {
 async function validateEvidence(args, json) {
   const evidencePath = evidencePathFromArg(args[0]);
   const schema = await loadJson("schemas/result.schema.json");
-  const mobileManifest = await loadJson("probes/mobile/userscript-canary.manifest.json");
+  const mobileManifests = {
+    emulator: await loadMobileManifest("emulator"),
+    oneplus: await loadMobileManifest("oneplus"),
+  };
   const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
   const validator = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
-  const result = inspectEvidence(evidence, validator, evidencePath, mobileManifest);
+  const result = inspectEvidence(evidence, validator, evidencePath, mobileManifestForEvidence(evidence, mobileManifests));
  if (json) console.log(JSON.stringify(result, null, 2));
  else {
    console.log(`Schema: ${result.schemaValid ? "PASS" : "FAIL"}`);
@@ -509,7 +535,10 @@ async function releaseCheck(args, json) {
   const projectRoot = projectPathFromArg(options.project);
   const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
   const evidenceSchema = await loadJson("schemas/result.schema.json");
-  const mobileManifest = await loadJson("probes/mobile/userscript-canary.manifest.json");
+  const mobileManifests = {
+    emulator: await loadMobileManifest("emulator"),
+    oneplus: await loadMobileManifest("oneplus"),
+  };
   const validator = new Ajv2020({ allErrors: true, strict: false }).compile(evidenceSchema);
   const checks = [];
   const addCheck = (id, status, details = undefined) => checks.push({ id, status, ...(details ? { details } : {}) });
@@ -541,7 +570,7 @@ async function releaseCheck(args, json) {
     let evidence;
     try { evidence = JSON.parse(await readFile(evidencePath, "utf8")); }
     catch (error) { addCheck(`${kind}-evidence-readable`, "FAIL", { error: String(error?.message || error) }); continue; }
-    const inspection = inspectEvidence(evidence, validator, evidencePath, mobileManifest);
+    const inspection = inspectEvidence(evidence, validator, evidencePath, mobileManifestForEvidence(evidence, mobileManifests));
     addCheck(`${kind}-evidence-schema`, inspection.pass ? "PASS" : "FAIL", inspection);
     addCheck(`${kind}-status`, evidence.status === "PASS" ? "PASS" : "FAIL", { status: evidence.status });
     addCheck(`${kind}-project`, evidence.project === project.id ? "PASS" : "FAIL", { expected: project.id, actual: evidence.project });
@@ -898,7 +927,7 @@ async function candidate(args, json) {
 
 function parseMobileHandoffOptions(args) {
   if (!args[0] || args[0].startsWith("--")) throw new Error("mobile-handoff requires a project path");
-  const options = { project: args[0], candidate: null, port: 8765 };
+  const options = { project: args[0], candidate: null, port: 8765, target: "emulator", baseUrl: null };
   for (let index = 1; index < args.length; index += 1) {
     const option = args[index];
     if (option === "--candidate") {
@@ -909,11 +938,27 @@ function parseMobileHandoffOptions(args) {
       index += 1;
       if (!/^\d+$/.test(value) || Number(value) < 1024 || Number(value) > 65535) throw new Error("--port must be an integer between 1024 and 65535");
       options.port = Number(value);
+    } else if (option === "--target") {
+      options.target = takeOptionValue(args, index, option);
+      index += 1;
+      if (!MOBILE_MANIFEST_PATHS[options.target]) throw new Error("--target must be emulator or oneplus");
+    } else if (option === "--base-url") {
+      options.baseUrl = takeOptionValue(args, index, option).replace(/\/$/, "");
+      index += 1;
     } else {
       throw new Error(`Unknown mobile-handoff option '${option}'`);
     }
   }
   if (!options.candidate) throw new Error("mobile-handoff requires --candidate");
+  if (options.target === "oneplus") {
+    if (!options.baseUrl) throw new Error("mobile-handoff --target oneplus requires --base-url");
+    let parsedBaseUrl;
+    try { parsedBaseUrl = new URL(options.baseUrl); } catch { throw new Error("--base-url must be a valid http(s) URL"); }
+    if (!['http:', 'https:'].includes(parsedBaseUrl.protocol) || !parsedBaseUrl.hostname) throw new Error("--base-url must be a valid http(s) URL");
+    if (["localhost", "127.0.0.1", "::1", "10.0.2.2"].includes(parsedBaseUrl.hostname)) throw new Error("--base-url for oneplus must be reachable from the phone, not a loopback/emulator mapping");
+  } else if (options.baseUrl) {
+    throw new Error("--base-url is only valid with --target oneplus");
+  }
   return options;
 }
 
@@ -922,7 +967,7 @@ async function mobileHandoff(args, json) {
   const options = parseMobileHandoffOptions(args);
   const projectRoot = projectPathFromArg(options.project);
   const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
-  const manifest = await loadJson("probes/mobile/userscript-canary.manifest.json");
+  const manifest = await loadMobileManifest(options.target);
   const manifestSchema = await loadJson("schemas/mobile-userscript-probe.schema.json");
   const manifestValidator = new Ajv2020({ allErrors: true, strict: false }).compile(manifestSchema);
   if (!manifestValidator(manifest)) throw new Error(`Mobile userscript probe manifest is invalid: ${JSON.stringify(manifestValidator.errors)}`);
@@ -947,7 +992,7 @@ async function mobileHandoff(args, json) {
     throw new Error(`Mobile probe artifact '${manifest.artifact.relativePath}' does not match project artifact '${artifactRelative}'`);
   }
   const version = releaseVersion(await readFile(artifactPath, "utf8"));
-  const base = `http://${manifest.target.hostMapping}:${options.port}`;
+  const base = options.target === "emulator" ? `http://${manifest.target.hostMapping}:${options.port}` : options.baseUrl;
   const result = {
     schemaVersion: 1,
     status: "PASS",

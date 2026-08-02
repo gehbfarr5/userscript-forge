@@ -27,5 +27,5 @@
 - `status` 以 `registry/capabilities.json` 的当前 evidenceRunId 为准，不要把历史 evidence 路径当成当前状态；移动 UI 运行态必须交给仓外编排器，Codex 只维护 `probes/mobile/` 交接工具和读取结果。
 - 新脚本优先通过中央 `new` 生成器创建；`direct` 与 `bundle` 都必须使用中央生成器。bundle 必须运行中央 `build` 命令生成不压缩、可审查且纳入 Git 的 `dist/*.user.js`，不能手写或伪造构建结果。
 - `candidate` 生成的 PASS 只是静态候选锁定；必须继续通过管理器、设备和发布门禁，才能进入最终验收。
-- `mobile-handoff` 只生成绑定当前候选的模拟器 Firefox 交接信息，不执行设备 I/O；外部编排器必须按 manifest 的检查 ID 写回独立 `result.json`，不能把 handoff PASS 当作 Firefox/管理器 PASS。
+- `mobile-handoff` 只生成绑定当前候选的模拟器或一加 15 Firefox 交接信息；一加 15 必须显式提供手机可访问的 `--base-url`。它不执行设备 I/O；外部编排器必须按对应 manifest 的检查 ID 写回独立 `result.json`，不能把 handoff PASS 当作 Firefox/管理器 PASS。
 - `greasyfork-handoff` 只生成绑定当前候选的浏览器发布交接信息，不执行登录、上传或提交；外部编排器必须按 manifest 的检查 ID 写回公开端核对证据，不能把 handoff PASS 当作 Greasy Fork 发布 PASS。
