@@ -9,10 +9,35 @@
     "schemaVersion": { "const": 1 },
     "runId": { "type": "string", "minLength": 1 },
     "status": { "enum": ["PASS", "FAIL", "SKIP", "BLOCKED", "NOT_RUN"] },
-    "checks": { "type": "array", "items": { "type": "object" } },
-    "artifact": { "type": "object" },
-    "environment": { "type": "object" }
+    "project": { "type": "string", "minLength": 1 },
+    "probe": { "type": "string", "minLength": 1 },
+    "sourceCommit": { "type": "string", "pattern": "^[0-9a-f]{7,64}$" },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "environment": { "type": "object", "additionalProperties": true },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["PASS", "FAIL", "SKIP", "BLOCKED", "NOT_RUN"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } },
+    "observations": { "type": "array", "items": { "type": "object" } },
+    "startedAt": { "type": "string", "minLength": 1 },
+    "finishedAt": { "type": "string", "minLength": 1 }
   },
   "additionalProperties": false
 }
-

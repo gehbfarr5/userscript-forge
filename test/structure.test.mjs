@@ -4,6 +4,7 @@ import { constants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import Ajv2020 from "ajv/dist/2020.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -42,4 +43,21 @@ test("runtime contract is pinned to Node 24 and pnpm 11.1.1", async () => {
 test("central repository has a public remote", async () => {
   const gitConfig = await read(".git/config");
   assert.match(gitConfig, /url = https:\/\/github\.com\/[^\s]+\/userscript-forge\.git/);
+});
+
+test("structured evidence schema accepts explicit PASS and BLOCKED results", async () => {
+  const schema = JSON.parse(await read("schemas/result.schema.json"));
+  const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+  assert.equal(validate({
+    schemaVersion: 1,
+    runId: "fixture-pass",
+    status: "PASS",
+    checks: [{ id: "local-page", status: "PASS" }],
+  }), true);
+  assert.equal(validate({
+    schemaVersion: 1,
+    runId: "fixture-blocked",
+    status: "BLOCKED",
+    checks: [{ id: "manager-injection", status: "BLOCKED" }],
+  }), true);
 });

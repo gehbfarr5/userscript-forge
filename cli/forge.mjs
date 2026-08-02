@@ -4,6 +4,7 @@ import { access, readFile, readdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import Ajv2020 from "ajv/dist/2020.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REQUIRED_PATHS = [
@@ -21,7 +22,7 @@ const REQUIRED_PATHS = [
 ];
 
 function usage() {
-  console.log(`Userscript Forge CLI (Stage B1)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  status [--json]   Show the current local stage\n`);
+  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  status [--json]   Show the current local stage\n`);
 }
 
 function parseArgs(argv) {
@@ -109,17 +110,26 @@ async function validate(json) {
 async function status(json) {
   const gitConfig = await readFile(path.join(ROOT, ".git", "config"), "utf8");
   const remoteMatch = gitConfig.match(/\n\s*url\s*=\s*(\S+)/);
+  const managerEvidencePath = path.resolve(ROOT, "..", "private", "evidence", "userscript-environment-check", "stage-b-manager", "result.json");
+  let managerProbe = "NOT_RUN";
+  try {
+    const managerEvidence = JSON.parse(await readFile(managerEvidencePath, "utf8"));
+    managerProbe = managerEvidence.status ?? "NOT_RUN";
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
   const result = {
-    stage: "B1",
+    stage: "B2",
     remoteConfigured: Boolean(remoteMatch),
     remoteUrl: remoteMatch?.[1] ?? null,
     directBrowserVerified: true,
-    managerInjectionVerified: false,
+    managerProbe,
+    managerInjectionVerified: managerProbe === "PASS",
     deviceConnected: false,
     publicationEnabled: false,
   };
   if (json) console.log(JSON.stringify(result, null, 2));
-  else console.log([`Stage: ${result.stage}`, `Remote: ${result.remoteConfigured ? result.remoteUrl : "not configured"}`, `Direct browser: ${result.directBrowserVerified ? "verified" : "not verified"}`, `Manager injection: ${result.managerInjectionVerified ? "verified" : "not verified"}`, "Device: not connected", "Publication: disabled"].join("\n"));
+  else console.log([`Stage: ${result.stage}`, `Remote: ${result.remoteConfigured ? result.remoteUrl : "not configured"}`, `Direct browser: ${result.directBrowserVerified ? "verified" : "not verified"}`, `Manager probe: ${result.managerProbe}`, `Manager injection: ${result.managerInjectionVerified ? "verified" : "not verified"}`, "Device: not connected", "Publication: disabled"].join("\n"));
 }
 
 function projectPathFromArg(argument) {
@@ -130,6 +140,46 @@ function projectPathFromArg(argument) {
     throw new Error(`Project path must be inside ${projectsRoot}`);
   }
   return candidate;
+}
+
+function evidencePathFromArg(argument) {
+  if (!argument) throw new Error("validate-evidence requires a result.json path");
+  const privateRoot = path.resolve(ROOT, "..", "private");
+  const candidate = path.resolve(ROOT, argument);
+  if (candidate !== privateRoot && !candidate.startsWith(`${privateRoot}${path.sep}`)) {
+    throw new Error(`Evidence path must be inside ${privateRoot}`);
+  }
+  return candidate;
+}
+
+async function validateEvidence(args, json) {
+  const evidencePath = evidencePathFromArg(args[0]);
+  const schema = await loadJson("schemas/result.schema.json");
+  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const validate = ajv.compile(schema);
+  const schemaValid = validate(evidence);
+  const checks = Array.isArray(evidence.checks) ? evidence.checks : [];
+  const ids = checks.map((check) => check.id);
+  const uniqueCheckIds = new Set(ids).size === ids.length;
+  const passStatusHasOnlyPassChecks = evidence.status !== "PASS" || checks.every((check) => check.status === "PASS");
+  const result = {
+    path: path.relative(path.resolve(ROOT, ".."), evidencePath),
+    schemaValid,
+    uniqueCheckIds,
+    passStatusHasOnlyPassChecks,
+    errors: validate.errors ?? [],
+    pass: schemaValid && uniqueCheckIds && passStatusHasOnlyPassChecks,
+  };
+  if (json) console.log(JSON.stringify(result, null, 2));
+  else {
+    console.log(`Schema: ${result.schemaValid ? "PASS" : "FAIL"}`);
+    console.log(`Unique check ids: ${result.uniqueCheckIds ? "PASS" : "FAIL"}`);
+    console.log(`PASS status integrity: ${result.passStatusHasOnlyPassChecks ? "PASS" : "FAIL"}`);
+    if (result.errors.length) console.log(JSON.stringify(result.errors, null, 2));
+    console.log(`Evidence validate: ${result.pass ? "PASS" : "FAIL"}`);
+  }
+  if (!result.pass) process.exitCode = 1;
 }
 
 async function validateProject(args, json) {
@@ -179,6 +229,7 @@ async function main() {
   if (command === "doctor") return doctor(json);
   if (command === "validate") return validate(json);
   if (command === "validate-project") return validateProject(rest, json);
+  if (command === "validate-evidence") return validateEvidence(rest, json);
   if (command === "status") return status(json);
   usage();
 }
