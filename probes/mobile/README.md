@@ -8,6 +8,8 @@ Android 的顺序固定为：
 2. 同一候选文件的页面行为验证。
 3. 只有模拟器通过后，才允许进入 OnePlus 15 的最终集成门。
 
+本目录提供两个无状态辅助工具：`serve.py` 只提供候选文件和脱敏测试页，`open-firefox-url.sh` 只在显式指定并通过目标类型校验后打开浏览器 URL。它们不读取或写入 Firefox profile、Cookie、扩展数据库或设备配置。
+
 每次结果必须绑定 `sourceCommit` 和脚本 SHA-256，并通过中央命令校验：
 
 ```text
@@ -26,3 +28,13 @@ pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.j
 4. 结果写入工作区外的 `private/evidence/userscript-environment-check/android-emulator-manager/result.json`，使用中央 `schemas/result.schema.json` 和 `validate-evidence` 校验；结果必须绑定 canary 提交和 SHA-256。
 
 建议检查 ID：`firefox-launched`、`manager-install-surface`、`script-installed`、`manager-injection`、`gm-storage`。不要写入设备 serial、局域网地址、Firefox profile 或登录态到公开仓库。
+
+示例（由仓外编排器执行，不在 Codex 沙箱中执行设备 I/O）：
+
+```text
+python3 forge/probes/mobile/serve.py --directory projects/userscript-environment-check --host 0.0.0.0 --port 8765
+forge/probes/mobile/open-firefox-url.sh --serial emulator-5554 --target emulator --url http://10.0.2.2:8765/userscripts/userscript-environment-check.user.js?v=<version>
+forge/probes/mobile/open-firefox-url.sh --serial <explicit-real-serial> --expected-serial <same-serial> --target real --url http://<host-ip>:8765/test-pages/smoke.html
+```
+
+`open-firefox-url.sh` 只负责导航，安装/更新按钮和注入结果必须由 Appium/Computer Use 的 UI 证据断言；导航成功不能单独产生 `PASS`。

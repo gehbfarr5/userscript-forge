@@ -62,6 +62,32 @@ function requireSupportedRuntime(command) {
   if (!runtimePass()) throw new Error(`${command} requires Node >=24 <25; current runtime is ${process.versions.node}`);
 }
 
+async function findEvidenceByRunId(runId) {
+  if (!runId) return null;
+  const evidenceRoot = path.resolve(ROOT, "..", "private", "evidence");
+  async function walk(directory) {
+    let entries;
+    try { entries = await readdir(directory, { withFileTypes: true }); }
+    catch (error) { if (error?.code === "ENOENT") return null; throw error; }
+    for (const entry of entries) {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        const nested = await walk(entryPath);
+        if (nested) return nested;
+      } else if (entry.isFile() && entry.name.endsWith(".json")) {
+        try {
+          const evidence = JSON.parse(await readFile(entryPath, "utf8"));
+          if (evidence.runId === runId) return evidence;
+        } catch {
+          // Status is a read-only summary; malformed historical files are reported as unavailable.
+        }
+      }
+    }
+    return null;
+  }
+  return walk(evidenceRoot);
+}
+
 async function doctor(json) {
   const checks = {
     node: {
@@ -129,22 +155,31 @@ async function validate(json) {
 async function status(json) {
   const gitConfig = await readFile(path.join(ROOT, ".git", "config"), "utf8");
   const remoteMatch = gitConfig.match(/\n\s*url\s*=\s*(\S+)/);
-  const directEvidencePath = path.resolve(ROOT, "..", "private", "evidence", "userscript-environment-check", "stage-b-direct", "result.json");
-  const managerEvidencePath = path.resolve(ROOT, "..", "private", "evidence", "userscript-environment-check", "stage-b-manager", "result.json");
-  let directProbe = "NOT_RUN";
-  let managerProbe = "NOT_RUN";
-  try {
-    const directEvidence = JSON.parse(await readFile(directEvidencePath, "utf8"));
-    directProbe = directEvidence.status ?? "NOT_RUN";
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-  }
-  try {
-    const managerEvidence = JSON.parse(await readFile(managerEvidencePath, "utf8"));
-    managerProbe = managerEvidence.status ?? "NOT_RUN";
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-  }
+  const capabilityRegistry = await loadJson("registry/capabilities.json");
+  const capabilities = Object.fromEntries(await Promise.all(capabilityRegistry.capabilities.map(async (capability) => {
+    const evidence = await findEvidenceByRunId(capability.evidenceRunId);
+    const evidenceStatus = evidence?.status ?? null;
+    const status = evidenceStatus && evidenceStatus !== capability.status ? "INCONSISTENT" : capability.status;
+    return [capability.id, {
+      status,
+      registryStatus: capability.status,
+      evidenceStatus,
+      evidenceRunId: capability.evidenceRunId ?? null,
+    }];
+  })));
+  const capabilityStatus = (id) => capabilities[id]?.status ?? "NOT_RUN";
+  const directProbe = capabilityStatus("desktop-direct-browser");
+  const managerProbe = capabilityStatus("desktop-tampermonkey-manager");
+  const androidProbe = capabilityStatus("android-emulator-firefox-manager");
+  const onePlusProbe = capabilityStatus("oneplus-15-firefox-manager");
+  const iphoneProbe = capabilityStatus("iphone-safari-stay");
+  const githubProbe = capabilityStatus("github-public-repository-push");
+  const greasyForkProbe = capabilityStatus("greasyfork-publication");
+  const publicationStatus = githubProbe === "PASS" && greasyForkProbe === "PASS"
+    ? "PASS"
+    : githubProbe === "PASS" || greasyForkProbe === "PASS"
+      ? "PARTIAL"
+      : greasyForkProbe;
   const result = {
     stage: "B2",
     remoteConfigured: Boolean(remoteMatch),
@@ -153,11 +188,27 @@ async function status(json) {
     directBrowserVerified: directProbe === "PASS",
     managerProbe,
     managerInjectionVerified: managerProbe === "PASS",
+    mobile: { androidEmulator: androidProbe, onePlus15: onePlusProbe, iphoneSafariStay: iphoneProbe },
+    publication: { github: githubProbe, greasyFork: greasyForkProbe, status: publicationStatus },
+    capabilities,
     deviceConnected: false,
-    publicationEnabled: false,
+    publicationEnabled: publicationStatus === "PASS",
   };
   if (json) console.log(JSON.stringify(result, null, 2));
-  else console.log([`Stage: ${result.stage}`, `Remote: ${result.remoteConfigured ? result.remoteUrl : "not configured"}`, `Direct probe: ${result.directProbe}`, `Direct browser: ${result.directBrowserVerified ? "verified" : "not verified"}`, `Manager probe: ${result.managerProbe}`, `Manager injection: ${result.managerInjectionVerified ? "verified" : "not verified"}`, "Device: not connected", "Publication: disabled"].join("\n"));
+  else console.log([
+    `Stage: ${result.stage}`,
+    `Remote: ${result.remoteConfigured ? result.remoteUrl : "not configured"}`,
+    `Direct probe: ${result.directProbe}`,
+    `Direct browser: ${result.directBrowserVerified ? "verified" : "not verified"}`,
+    `Manager probe: ${result.managerProbe}`,
+    `Manager injection: ${result.managerInjectionVerified ? "verified" : "not verified"}`,
+    `Android emulator: ${result.mobile.androidEmulator}`,
+    `OnePlus 15: ${result.mobile.onePlus15}`,
+    `iPhone Safari + Stay: ${result.mobile.iphoneSafariStay}`,
+    `GitHub: ${result.publication.github}`,
+    `Greasy Fork: ${result.publication.greasyFork}`,
+    `Publication gate: ${result.publication.status}`,
+  ].join("\n"));
 }
 
 function projectPathFromArg(argument) {

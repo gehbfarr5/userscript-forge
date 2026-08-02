@@ -31,6 +31,8 @@ pnpm run forge -- release-check ../projects/my-script --candidate ../private/evi
 
 `release-check` 是发布前的 fail-closed 总门禁。它不会发布或修改外部平台，只接受私密 evidence，并要求每个 `--require` 平台记录都是 `PASS`，且项目、源码提交和候选 SHA-256 完全一致。缺少、过期或 `BLOCKED` 的证据都会阻止后续发布。
 
+`status` 读取脱敏能力登记及其 evidenceRunId，不再固定读取某一次历史 canary；因此历史重试不会覆盖当前验证结果。移动探针的 `probes/mobile/serve.py` 和 `open-firefox-url.sh` 只负责准备候选文件、导航到 Firefox 和做目标类型保护，实际安装/更新按钮及注入结果仍由仓外 Appium/Computer Use 编排器断言。
+
 ## 公私边界
 
 这个仓库可以公开；登录页面、完整 HTML、Cookie 邻近材料、HAR、截图、录屏、设备标识和本机路径不得进入仓库。发布工具将使用公开文件白名单，并在后续阶段加入密钥与隐私扫描。

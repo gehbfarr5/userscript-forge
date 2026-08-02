@@ -23,6 +23,8 @@ test("central scaffold contains the public contract", async () => {
     "docs/contracts/lifecycle.md",
     "registry/capabilities.json",
     "probes/mobile/README.md",
+    "probes/mobile/serve.py",
+    "probes/mobile/open-firefox-url.sh",
   ]) {
     await access(path.join(ROOT, relativePath), constants.F_OK);
   }
@@ -87,6 +89,8 @@ test("bundle projects require the readable esbuild adapter", async () => {
   assert.match(cli, /Every required platform evidence record must be PASS/);
   assert.match(cli, /@description  " \+ project\.description/);
   assert.match(cli, /requires Node >=24 <25/);
+  assert.match(cli, /capabilityRegistry = await loadJson\("registry\/capabilities\.json"\)/);
+  assert.match(cli, /Publication gate: \$\{result\.publication\.status\}/);
 });
 
 test("capability registry keeps verified and unverified platforms explicit", async () => {
