@@ -483,10 +483,10 @@ function inspectEvidence(evidence, validator, evidencePath, mobileManifest = nul
 
 function releaseEvidenceProbeMatches(kind, probe) {
   if (typeof probe !== "string") return false;
-  if (kind === "manager") return /^stage-b-manager(?:-|$)/.test(probe);
+  if (kind === "manager") return ["stage-b-manager", "stage-b-manager-v012", "stage-b-manager-v013"].includes(probe);
   if (kind === "device") return ["android-emulator-manager", "oneplus-15-firefox-manager"].includes(probe);
-  if (kind === "github") return /^github-publish(?:-|$)/.test(probe);
-  if (kind === "greasyfork") return ["greasyfork", "greasyfork-version-sync"].includes(probe);
+  if (kind === "github") return ["github-publish", "github-publish-adapter"].includes(probe);
+  if (kind === "greasyfork") return ["greasyfork-first-import", "greasyfork-version-sync"].includes(probe);
   return false;
 }
 
@@ -583,12 +583,12 @@ async function releaseCheck(args, json) {
     addCheck(`${kind}-evidence-schema`, inspection.pass ? "PASS" : "FAIL", inspection);
     addCheck(`${kind}-probe`, releaseEvidenceProbeMatches(kind, evidence.probe) ? "PASS" : "FAIL", {
       expected: kind === "manager"
-        ? "stage-b-manager*"
+        ? ["stage-b-manager", "stage-b-manager-v012", "stage-b-manager-v013"]
         : kind === "device"
           ? ["android-emulator-manager", "oneplus-15-firefox-manager"]
           : kind === "github"
-            ? "github-publish*"
-            : ["greasyfork", "greasyfork-version-sync"],
+            ? ["github-publish", "github-publish-adapter"]
+            : ["greasyfork-first-import", "greasyfork-version-sync"],
       actual: evidence.probe,
     });
     addCheck(`${kind}-status`, evidence.status === "PASS" ? "PASS" : "FAIL", { status: evidence.status });

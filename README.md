@@ -37,7 +37,7 @@ pnpm run forge -- publish-github ../projects/my-script --release-evidence ../pri
 
 `greasyfork-handoff` 是只读的 Greasy Fork 浏览器发布交接命令：它校验当前候选、版本和 SHA-256，输出首次创建页、版本更新页、公开脚本页、公开代码页和必需检查 ID。它不会登录、上传或提交表单；浏览器编排器完成后必须写回独立公开端证据。
 
-`release-check` 是发布前的 fail-closed 总门禁。它不会发布或修改外部平台，只接受私密 evidence，并要求每个 `--require` 平台记录都是 `PASS`，且项目、源码提交、候选 SHA-256 和 probe 类型完全一致：管理器只能是 `stage-b-manager*`，设备只能是 `android-emulator-manager` 或 `oneplus-15-firefox-manager`，GitHub 只能是 `github-publish*`，Greasy Fork 只能是公开发布 probe。缺少、过期、类型错误或 `BLOCKED` 的证据都会阻止后续发布。
+`release-check` 是发布前的 fail-closed 总门禁。它不会发布或修改外部平台，只接受私密 evidence，并要求每个 `--require` 平台记录都是 `PASS`，且项目、源码提交、候选 SHA-256 和 probe 类型完全一致：管理器只能是明确的 `stage-b-manager` 版本 probe，设备只能是 `android-emulator-manager` 或 `oneplus-15-firefox-manager`，GitHub 只能是 `github-publish` 或已核对的 `github-publish-adapter`，Greasy Fork 只能是 `greasyfork-first-import` 或 `greasyfork-version-sync`。缺少、过期、类型错误或 `BLOCKED` 的证据都会阻止后续发布。
 
 `publish-github` 是 GitHub Release 适配器：它只接受当前项目、提交、候选 SHA-256 全部匹配的 `release-check PASS`，并在发布后重新读取 GitHub Release，核对 tag、目标提交、资产状态和远端 SHA-256。`--dry-run` 不执行写入；已有完全匹配的 Release 可幂等通过。Greasy Fork 仍由已登录浏览器编排器处理，不假设存在写入 API。
 
