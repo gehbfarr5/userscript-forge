@@ -16,7 +16,7 @@
     "hostMapping": "explicit-host-url"
   },
   "paths": {
-    "install": "/userscripts/userscript-environment-check.user.js",
+    "install": "/test-pages/install.html",
     "smoke": "/test-pages/smoke.html"
   },
   "requiredChecks": [
