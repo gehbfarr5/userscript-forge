@@ -1,0 +1,19 @@
+{
+  "name": "userscript-forge",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Agent-neutral tooling and contracts for public userscript projects",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "pnpm@11.1.1",
+  "scripts": {
+    "doctor": "node cli/forge.mjs doctor",
+    "validate": "node cli/forge.mjs validate",
+    "forge": "node cli/forge.mjs",
+    "test": "node --test"
+  }
+}
+

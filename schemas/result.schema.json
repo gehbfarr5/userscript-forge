@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://userscript-forge.local/schemas/result.schema.json",
+  "schemaVersion": 1,
+  "title": "Userscript Forge run result",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "status", "checks"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["PASS", "FAIL", "SKIP", "BLOCKED", "NOT_RUN"] },
+    "checks": { "type": "array", "items": { "type": "object" } },
+    "artifact": { "type": "object" },
+    "environment": { "type": "object" }
+  },
+  "additionalProperties": false
+}
+

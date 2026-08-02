@@ -1,0 +1,15 @@
+node_modules/
+.pnpm-store/
+.env
+.env.*
+!.env.example
+coverage/
+dist/
+evidence/
+screenshots/
+videos/
+*.har
+*.log
+.playwright/
+.forge-local/
+

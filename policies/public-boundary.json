@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "publicRoots": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    "LICENSE",
+    ".gitignore",
+    "package.json",
+    "cli",
+    "docs",
+    "schemas",
+    "policies",
+    "templates",
+    "adapters",
+    "probes",
+    "registry"
+  ],
+  "privateRoots": [
+    "raw-pages",
+    "evidence",
+    "browser-state",
+    "local-config"
+  ],
+  "forbiddenTextPatterns": [
+    "/Users/",
+    "Cookie:",
+    "Set-Cookie:",
+    "session_id",
+    "csrf_token",
+    "ADB_SERIAL=",
+    "3B166Q00SX000000"
+  ]
+}
+
