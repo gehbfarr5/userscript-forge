@@ -56,3 +56,14 @@ forge/probes/mobile/open-firefox-url.sh --serial <explicit-real-serial> --expect
 ```
 
 `open-firefox-url.sh` 只负责导航，安装/更新按钮和注入结果必须由 Appium/Computer Use 的 UI 证据断言；导航成功不能单独产生 `PASS`。
+
+live 运行写出 `PASS` 后，外部 Agent 应把结果交回中央能力矩阵，而不是手改状态：
+
+```text
+pnpm run forge -- record-capability android-emulator-firefox-manager \
+  ../private/evidence/userscript-environment-check/android-emulator-manager/<run-id>/result.json --dry-run --json
+pnpm run forge -- record-capability android-emulator-firefox-manager \
+  ../private/evidence/userscript-environment-check/android-emulator-manager/<run-id>/result.json --json
+```
+
+一加 15 使用 `oneplus-15-firefox-manager` 作为 capability id；登记命令会拒绝错误 probe、缺失移动检查或包含设备/Session 字段的 evidence。登记只更新脱敏 `registry/capabilities.json`，随后仍需提交并推送中央仓库。
