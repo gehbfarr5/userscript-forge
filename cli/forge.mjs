@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import Ajv2020 from "ajv/dist/2020.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,7 +26,7 @@ const REQUIRED_PATHS = [
 ];
 
 function usage() {
-  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  status [--json]   Show the current local stage\n`);
+  console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  new <id> [options] Create an independent direct-script project\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n`);
 }
 
 function parseArgs(argv) {
@@ -160,6 +161,156 @@ function evidencePathFromArg(argument) {
   return candidate;
 }
 
+function singleLine(value, label) {
+  if (!value || /[\r\n]/.test(value)) throw new Error(`${label} must be a non-empty single-line value`);
+  return value;
+}
+
+function takeOptionValue(args, index, option) {
+  const value = args[index + 1];
+  if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
+  return value;
+}
+
+function parseKeyValue(value, label) {
+  const separator = value.indexOf("=");
+  if (separator <= 0 || separator === value.length - 1) throw new Error(`${label} must use NAME=REASON`);
+  return [value.slice(0, separator), value.slice(separator + 1)];
+}
+
+function parseNewOptions(args) {
+  const options = {
+    mode: "direct",
+    matches: [],
+    grants: [],
+    grantReasons: new Map(),
+    connects: [],
+    connectReasons: new Map(),
+    greasyForkRequired: true,
+    dryRun: false,
+    gitInit: true,
+  };
+  if (!args[0] || args[0].startsWith("--")) throw new Error("new requires a kebab-case project id");
+  options.id = args[0];
+  for (let index = 1; index < args.length; index += 1) {
+    const option = args[index];
+    if (option === "--dry-run") options.dryRun = true;
+    else if (option === "--no-git") options.gitInit = false;
+    else if (option === "--greasy-fork") options.greasyForkRequired = true;
+    else if (option === "--no-greasy-fork") options.greasyForkRequired = false;
+    else if (["--name", "--description", "--repository", "--namespace", "--release-branch", "--mode", "--match", "--grant", "--connect", "--grant-reason", "--connect-reason"].includes(option)) {
+      const value = takeOptionValue(args, index, option);
+      index += 1;
+      if (option === "--name") options.name = singleLine(value, "--name");
+      else if (option === "--description") options.description = singleLine(value, "--description");
+      else if (option === "--repository") options.repository = singleLine(value, "--repository");
+      else if (option === "--namespace") options.namespace = singleLine(value, "--namespace");
+      else if (option === "--release-branch") options.releaseBranch = singleLine(value, "--release-branch");
+      else if (option === "--mode") options.mode = value;
+      else if (option === "--match") options.matches.push(singleLine(value, "--match"));
+      else if (option === "--grant") options.grants.push(singleLine(value, "--grant"));
+      else if (option === "--connect") options.connects.push(singleLine(value, "--connect"));
+      else if (option === "--grant-reason") {
+        const [name, reason] = parseKeyValue(value, "--grant-reason");
+        options.grantReasons.set(singleLine(name, "grant name"), singleLine(reason, "grant reason"));
+      } else if (option === "--connect-reason") {
+        const [host, reason] = parseKeyValue(value, "--connect-reason");
+        options.connectReasons.set(singleLine(host, "connect host"), singleLine(reason, "connect reason"));
+      }
+    } else throw new Error(`Unknown new option '${option}'`);
+  }
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(options.id)) throw new Error("Project id must be kebab-case lowercase ASCII");
+  if (!options.name) throw new Error("new requires --name");
+  if (!options.description) throw new Error("new requires --description");
+  if (!options.repository) throw new Error("new requires --repository");
+  if (!options.matches.length) throw new Error("new requires at least one --match");
+  if (options.mode !== "direct") throw new Error("The generator currently supports only --mode direct; bundle remains template-only until its build adapter is enabled");
+  for (const grant of options.grants) if (!options.grantReasons.has(grant)) throw new Error(`Missing --grant-reason for ${grant}`);
+  for (const host of options.connects) if (!options.connectReasons.has(host)) throw new Error(`Missing --connect-reason for ${host}`);
+  return options;
+}
+
+function metadataLines(options) {
+  const lines = [
+    "// ==UserScript==",
+    `// @name         ${options.name}`,
+    `// @namespace    ${options.namespace ?? options.repository}`,
+    "// @version      0.1.0",
+    `// @description  ${options.description}`,
+    ...options.matches.map((match) => `// @match        ${match}`),
+    ...options.grants.map((grant) => `// @grant        ${grant}`),
+    ...options.connects.map((host) => `// @connect      ${host}`),
+    "// @run-at       document-idle",
+    "// @license      MIT",
+    "// ==/UserScript==",
+    "",
+  ];
+  return lines.join("\n");
+}
+
+function projectManifest(options) {
+  const justifications = Object.fromEntries([
+    ...options.grants.map((grant) => [grant, options.grantReasons.get(grant)]),
+    ...options.connects.map((host) => [`connect:${host}`, options.connectReasons.get(host)]),
+  ]);
+  return {
+    schemaVersion: 1,
+    id: options.id,
+    name: options.name,
+    mode: options.mode,
+    targets: { matches: options.matches, requiredVerification: ["local-static", "local-direct-browser", "declared-platforms"] },
+    permissions: { grants: options.grants, connect: options.connects, justifications },
+    release: { githubRepository: options.repository, greasyForkRequired: options.greasyForkRequired, releaseBranch: options.releaseBranch ?? "release" },
+  };
+}
+
+function generatedReadme(options) {
+  return `# ${options.name}\n\n${options.description}\n\n- Mode: \`${options.mode}\`\n- Declared matches: ${options.matches.map((match) => `\`${match}\``).join(", ")}\n- GitHub: ${options.repository}\n- Greasy Fork required: ${options.greasyForkRequired ? "yes" : "no"}\n\n## Local workflow\n\nRun the central project validator before creating a release candidate:\n\n\`\`\`text\npnpm run forge -- validate-project ../projects/${options.id} --json\n\`\`\`\n\nThe generated script is a scaffold. Add behavior only after the target matrix and permission reasons are confirmed.\n`;
+}
+
+function regexEscape(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function newProject(args, json) {
+  const options = parseNewOptions(args);
+  const projectsRoot = path.resolve(ROOT, "..", "projects");
+  const projectRoot = path.join(projectsRoot, options.id);
+  const manifest = projectManifest(options);
+  const namePattern = JSON.stringify(`@name\\s+${regexEscape(options.name)}`);
+  const matchAssertions = options.matches.map((match) => `assert.match(script, new RegExp(${JSON.stringify(`@match\\s+${regexEscape(match)}`)}));`).join("\n  ");
+  const files = {
+    "README.md": generatedReadme(options),
+    ".gitignore": "node_modules/\ndist/\n.playwright-cli/\n.DS_Store\n",
+    "package.json": JSON.stringify({ name: options.id, version: "0.1.0", private: false, type: "module", license: "MIT", scripts: { test: "node --test" }, engines: { node: ">=24 <25" }, packageManager: "pnpm@11.1.1" }, null, 2) + "\n",
+    "userscript.project.json": JSON.stringify(manifest, null, 2) + "\n",
+    [`userscripts/${options.id}.user.js`]: `${metadataLines(options)}(() => {\n  "use strict";\n\n  // TODO: implement the requested behavior after the local target fixture exists.\n})();\n`,
+    "tests/metadata.test.mjs": `import assert from "node:assert/strict";\nimport { readFile } from "node:fs/promises";\nimport test from "node:test";\n\nconst script = await readFile(new URL("../userscripts/${options.id}.user.js", import.meta.url), "utf8");\n\ntest("generated userscript metadata matches the project declaration", () => {\n  assert.match(script, new RegExp(${namePattern}));\n  ${matchAssertions}\n});\n`,
+  };
+  if (!options.dryRun) {
+    try {
+      await access(projectRoot, constants.F_OK);
+      throw new Error(`Project already exists: ${projectRoot}`);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    await mkdir(path.join(projectRoot, "userscripts"), { recursive: true });
+    await mkdir(path.join(projectRoot, "tests"), { recursive: true });
+    await writeFile(path.join(projectRoot, "LICENSE"), await readFile(path.join(ROOT, "LICENSE"), "utf8"));
+    for (const [relativePath, contents] of Object.entries(files)) {
+      const destination = path.join(projectRoot, relativePath);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, contents, { mode: 0o644 });
+    }
+    if (options.gitInit) {
+      execFileSync("git", ["init", "-b", "main"], { cwd: projectRoot, stdio: "ignore" });
+    }
+  }
+  const result = { id: options.id, mode: options.mode, projectRoot: options.dryRun ? null : projectRoot, files: Object.keys(files).concat("LICENSE"), gitInitialized: !options.dryRun && options.gitInit, dryRun: options.dryRun };
+  if (json || options.dryRun) console.log(JSON.stringify(result, null, 2));
+  else console.log(`Created ${projectRoot}\nRun: pnpm run forge -- validate-project ../projects/${options.id} --json`);
+}
+
 async function validateEvidence(args, json) {
   const evidencePath = evidencePathFromArg(args[0]);
   const schema = await loadJson("schemas/result.schema.json");
@@ -238,6 +389,7 @@ async function main() {
   if (command === "validate") return validate(json);
   if (command === "validate-project") return validateProject(rest, json);
   if (command === "validate-evidence") return validateEvidence(rest, json);
+  if (command === "new") return newProject(rest, json);
   if (command === "status") return status(json);
   usage();
 }

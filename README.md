@@ -12,11 +12,14 @@ pnpm run validate
 pnpm run forge -- status --json
 pnpm run forge -- validate-project ../projects/userscript-environment-check
 pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.json
+pnpm run forge -- new my-script --name "My Script" --description "..." --repository https://github.com/<owner>/my-script --match "https://example.com/*" --dry-run --json
 ```
 
 中央 CLI、Schema 和策略是流程的权威来源。Agent 专属文件只负责告诉 Agent 如何调用中央命令，不重复定义质量门禁。
 
 `validate-evidence` 只接受工作区私密区中的结构化结果；`PASS` 结果必须让所有检查项都是 `PASS`。管理器或设备探针遇到环境限制时必须保留 `BLOCKED`，不能用直接脚本测试冒充真实注入。
+
+`new` 是独立项目的统一生成入口。当前生成器只创建可审查的 `direct` 单文件脚本；`bundle` 仍需等待构建适配器接入，不能把占位源码当作候选发布物。
 
 ## 公私边界
 
