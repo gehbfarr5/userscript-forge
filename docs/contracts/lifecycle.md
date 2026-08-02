@@ -19,6 +19,7 @@ intake → normalize → implement → check → test → candidate
 - `release-check` 必须在外部发布前运行；它要求所有声明为必需的管理器、设备和发布平台 evidence 都是 `PASS`，并且绑定同一源码提交和候选 SHA-256。
 - `release-check` 还必须按 evidence kind 锁定 probe 类型：管理器只能接受明确的 `stage-b-manager` 版本 probe；模拟器和一加 15 必须分别使用 `--emulator` 与 `--oneplus`，不能用泛化的 `--device` 互相替代；GitHub 只能接受 `github-publish` 或已核对的 `github-publish-adapter`，Greasy Fork 只能接受 `greasyfork-first-import` 或 `greasyfork-version-sync`；`mobile-handoff`、通用 Appium backend 或 direct probe 不能替代这些门禁。
 - `status` 只能把能力登记中的当前 evidenceRunId 当作当前状态；旧的 `BLOCKED` 或旧版本 `PASS` 必须保留为历史，不能覆盖新结果。
+- 外部探针写出新 evidence 后，必须先通过中央 `record-capability` 的 Schema、probe、目标契约和隐私字段校验，再更新能力登记；登记后的公开变更仍需 Git 提交和推送，私密 evidence 永不进入公开仓库。
 - 移动 UI 运行态由仓外编排器执行；中央仓库的移动辅助工具只准备候选服务、校验显式设备目标和打开 URL，不能凭导航成功或人工描述产生 `PASS`。
 - Android 用户脚本管理器证据按 target 分开：模拟器使用 `android-emulator-manager` / `android-emulator-firefox-manager`，一加 15 使用 `oneplus-15-firefox-manager`；两者都必须绑定同一候选 `sourceCommit` 与 `artifact.sha256`，不能用通用 Appium backend 证据替代。
 - 公开版本不通过删除或降级回滚，修复必须递增版本。

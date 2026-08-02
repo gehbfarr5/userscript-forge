@@ -14,6 +14,7 @@ pnpm run validate
 pnpm run forge -- status --json
 pnpm run forge -- validate-project ../projects/userscript-environment-check
 pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.json
+pnpm run forge -- record-capability <capability-id> ../private/evidence/<project>/<run>/result.json --dry-run --json
 pnpm run forge -- new my-script --name "My Script" --description "..." --repository https://github.com/<owner>/my-script --match "https://example.com/*" --dry-run --json
 pnpm run forge -- new my-bundle --mode bundle --name "My Bundle" --description "..." --repository https://github.com/<owner>/my-bundle --match "https://example.com/*"
 pnpm run forge -- build ../projects/my-bundle --json
@@ -42,6 +43,8 @@ pnpm run forge -- publish-github ../projects/my-script --release-evidence ../pri
 `publish-github` 是 GitHub Release 适配器：它只接受当前项目、提交、候选 SHA-256 全部匹配的 `release-check PASS`，并在发布后重新读取 GitHub Release，核对 tag、目标提交、资产状态和远端 SHA-256。`--dry-run` 不执行写入；已有完全匹配的 Release 可幂等通过。Greasy Fork 仍由已登录浏览器编排器处理，不假设存在写入 API。
 
 `status` 读取脱敏能力登记及其 evidenceRunId，不再固定读取某一次历史 canary；因此历史重试不会覆盖当前验证结果。移动探针的 `probes/mobile/serve.py` 和 `open-firefox-url.sh` 只负责准备候选文件、导航到 Firefox 和做目标类型保护，实际安装/更新按钮及注入结果仍由仓外 Appium/Computer Use 编排器断言。
+
+`record-capability` 是 live 外部编排完成后的登记入口：它只接受私密区中通过 Schema、目标 probe 和隐私字段校验的 evidence，把脱敏状态、probe 和 `runId` 写入公开 `registry/capabilities.json`；默认要求中央仓库干净，建议先用 `--dry-run`，写入后由 Agent 提交并推送中央仓库。私密 evidence 不会被复制到公开仓库。
 
 旧的一加 Firefox Skill 只作为迁移参考；迁移边界和退役条件见 `docs/contracts/legacy-oneplus-skill.md`，不会成为新项目的唯一标准。
 

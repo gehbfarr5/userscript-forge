@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -36,6 +36,7 @@ function usage() {
   console.log("mobile-handoff <path> --candidate PATH [--target emulator|oneplus] [--base-url URL] [--port NUMBER]: validate and emit the external mobile userscript handoff");
   console.log("greasyfork-handoff <path> --candidate PATH --script-id ID [--base-url URL]: validate and emit the browser publication handoff");
   console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--emulator/--oneplus/--github/--greasyfork evidence paths");
+  console.log("record-capability <id> <evidence> [--dry-run] [--json]: promote one validated private evidence record into the public capability registry");
   console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  release-check <path> [options]   Run the fail-closed pre-publication gate\n  publish-github <path> [options] Publish a checked candidate to a GitHub Release\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n\nrelease-check evidence options:\n  --manager PATH --device PATH (legacy generic device slot)\n  --emulator PATH --oneplus PATH (explicit Android userscript targets)\n  --github PATH --greasyfork PATH\n\npublish-github options:\n  --release-evidence PATH (required; a matching release-check PASS result)\n  --tag vX.Y.Z --title TEXT --notes TEXT --dry-run\n`);
 }
 
@@ -492,6 +493,37 @@ function releaseEvidenceProbeMatches(kind, probe) {
   return false;
 }
 
+const CAPABILITY_PROBE_ALLOWLIST = {
+  "desktop-direct-browser": ["stage-b-direct"],
+  "desktop-tampermonkey-manager": ["stage-b-manager", "stage-b-manager-v012", "stage-b-manager-v013"],
+  "android-emulator-firefox-manager": ["android-emulator-manager"],
+  "android-emulator-appium-backend": ["mobile-backend-android-emulator"],
+  "oneplus-15-firefox-manager": ["oneplus-15-firefox-manager"],
+  "oneplus-15-appium-backend": ["mobile-backend-oneplus-real"],
+  "iphone-safari-stay": ["iphone-safari-stay"],
+  "ios-simulator-appium-backend": ["mobile-backend-ios-simulator"],
+  "iphone-real-appium-backend": ["mobile-backend-iphone-real"],
+  "github-public-repository-push": ["github-publish", "github-publish-adapter", "github-release-v012"],
+  "greasyfork-publication": ["greasyfork-first-import", "greasyfork-version-sync"],
+  "codex-cli-readonly-contract": ["agent-cli-codex-readonly"],
+  "claude-cli-readonly-auth": ["agent-cli-claude-readonly"],
+};
+
+function capabilityProbeMatches(capabilityId, probe) {
+  return CAPABILITY_PROBE_ALLOWLIST[capabilityId]?.includes(probe) ?? false;
+}
+
+function forbiddenEvidenceKeys(value, forbiddenFields, prefix = "") {
+  if (!value || typeof value !== "object") return [];
+  const violations = [];
+  for (const [key, nested] of Object.entries(value)) {
+    const keyPath = prefix ? `${prefix}.${key}` : key;
+    if (forbiddenFields.includes(key)) violations.push(keyPath);
+    violations.push(...forbiddenEvidenceKeys(nested, forbiddenFields, keyPath));
+  }
+  return violations;
+}
+
 function parseReleaseCheckOptions(args) {
   const options = { candidate: null, required: new Set(), evidence: {} };
   const evidenceOptions = new Map([
@@ -545,6 +577,70 @@ async function validateEvidence(args, json) {
    console.log(`Evidence validate: ${result.pass ? "PASS" : "FAIL"}`);
  }
  if (!result.pass) process.exitCode = 1;
+}
+
+async function recordCapability(args, json) {
+  requireSupportedRuntime("record-capability");
+  const dryRun = args.includes("--dry-run");
+  const positional = args.filter((item) => item !== "--dry-run");
+  if (!positional[0] || positional[0].startsWith("--")) throw new Error("record-capability requires a capability id");
+  if (!positional[1] || positional[1].startsWith("--")) throw new Error("record-capability requires a private evidence path");
+  if (positional.length > 2) throw new Error("Unknown record-capability option");
+  const capabilityId = positional[0];
+  const evidencePath = evidencePathFromArg(positional[1]);
+  const registryPath = path.join(ROOT, "registry", "capabilities.json");
+  const dirty = gitOutput(ROOT, ["status", "--porcelain"]);
+  if (dirty.error || dirty.value) throw new Error("record-capability requires a clean central repository; commit or stash existing changes first");
+  const registry = await loadJson("registry/capabilities.json");
+  const capability = registry.capabilities.find((item) => item.id === capabilityId);
+  if (!capability) throw new Error(`Unknown capability '${capabilityId}'`);
+  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  const evidenceSchema = await loadJson("schemas/result.schema.json");
+  const mobileManifests = {
+    emulator: await loadMobileManifest("emulator"),
+    oneplus: await loadMobileManifest("oneplus"),
+  };
+  const validator = new Ajv2020({ allErrors: true, strict: false }).compile(evidenceSchema);
+  const mobileManifest = mobileManifestForEvidence(evidence, mobileManifests);
+  const inspection = inspectEvidence(evidence, validator, evidencePath, mobileManifest);
+  if (!inspection.pass) throw new Error(`Evidence validation failed: ${JSON.stringify(inspection)}`);
+  if (!capabilityProbeMatches(capabilityId, evidence.probe)) {
+    throw new Error(`Evidence probe '${evidence.probe}' is not allowed for capability '${capabilityId}'`);
+  }
+  const forbiddenFields = mobileManifest?.evidence?.forbiddenFields || [];
+  const forbiddenKeys = forbiddenEvidenceKeys(evidence, forbiddenFields);
+  if (forbiddenKeys.length) throw new Error(`Evidence contains forbidden private fields: ${forbiddenKeys.join(", ")}`);
+  if (!["PASS", "FAIL", "BLOCKED", "NOT_RUN"].includes(evidence.status)) throw new Error(`Unsupported capability evidence status '${evidence.status}'`);
+  const nextRegistry = {
+    ...registry,
+    capabilities: registry.capabilities.map((item) => item.id === capabilityId ? {
+      ...item,
+      status: evidence.status,
+      verification: evidence.status === "NOT_RUN" ? "not-run" : "structured-evidence",
+      evidenceRunId: evidence.runId,
+      note: `Current evidence: ${evidence.probe} ${evidence.status}. Previous runs remain in private evidence.`,
+    } : item),
+  };
+  const capabilitySchema = await loadJson("schemas/capability.schema.json");
+  const capabilityValidator = new Ajv2020({ allErrors: true, strict: false }).compile(capabilitySchema);
+  if (!capabilityValidator(nextRegistry)) throw new Error(`Updated capability registry is invalid: ${JSON.stringify(capabilityValidator.errors)}`);
+  if (!dryRun) {
+    const temporaryPath = `${registryPath}.tmp-${process.pid}`;
+    await writeFile(temporaryPath, `${JSON.stringify(nextRegistry, null, 2)}\n`, { mode: 0o644 });
+    await rename(temporaryPath, registryPath);
+  }
+  const result = {
+    capabilityId,
+    status: evidence.status,
+    probe: evidence.probe,
+    evidenceRunId: evidence.runId,
+    evidencePath: path.relative(path.resolve(ROOT, ".."), evidencePath),
+    registryPath: path.relative(path.resolve(ROOT, ".."), registryPath),
+    dryRun,
+    pass: true,
+  };
+  if (json) console.log(JSON.stringify(result, null, 2));
+  else console.log(`${dryRun ? "Capability preview" : "Capability recorded"}: ${capabilityId} = ${evidence.status}\nEvidence: ${evidence.runId}${dryRun ? "" : "\nCommit the registry change before pushing it publicly."}`);
 }
 
 async function releaseCheck(args, json) {
@@ -1169,6 +1265,7 @@ async function main() {
   if (command === "validate") return validate(json);
  if (command === "validate-project") return validateProject(rest, json);
   if (command === "validate-evidence") return validateEvidence(rest, json);
+  if (command === "record-capability") return recordCapability(rest, json);
   if (command === "release-check") return releaseCheck(rest, json);
   if (command === "publish-github") return publishGithub(rest, json);
  if (command === "build") return buildProject(rest, json);
