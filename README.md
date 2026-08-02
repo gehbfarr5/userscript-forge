@@ -6,6 +6,8 @@ Userscript Forge 是面向 Codex、Claude 等 Agent 的用户脚本开发、测�
 
 ## 统一入口
 
+先按 `.node-version` 使用 Node 24.18.0；`doctor` 在 Node 26 等不受支持的版本上会明确失败，不能用更高版本绕过运行时门禁。
+
 ```text
 pnpm run doctor
 pnpm run validate

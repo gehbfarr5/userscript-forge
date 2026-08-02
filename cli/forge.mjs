@@ -53,6 +53,14 @@ function nodeMajor() {
   return Number(process.versions.node.split(".")[0]);
 }
 
+function runtimePass() {
+  return nodeMajor() >= 24 && nodeMajor() < 25;
+}
+
+function requireSupportedRuntime(command) {
+  if (!runtimePass()) throw new Error(`${command} requires Node >=24 <25; current runtime is ${process.versions.node}`);
+}
+
 async function doctor(json) {
   const checks = {
     node: {
@@ -291,6 +299,7 @@ function regexEscape(value) {
 }
 
 async function newProject(args, json) {
+  requireSupportedRuntime("new");
   const options = parseNewOptions(args);
   const projectsRoot = path.resolve(ROOT, "..", "projects");
   const projectRoot = path.join(projectsRoot, options.id);
@@ -314,7 +323,7 @@ async function newProject(args, json) {
     ".gitignore": "node_modules/\n.pnpm-store/\n.playwright-cli/\n.DS_Store\n",
     "package.json": JSON.stringify(packageJson, null, 2) + "\n",
     "userscript.project.json": JSON.stringify(manifest, null, 2) + "\n",
-    "build.mjs": `import { build } from "esbuild";\nimport { mkdir, readFile } from "node:fs/promises";\nimport path from "node:path";\nimport { fileURLToPath } from "node:url";\n\nconst ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)));\nconst project = JSON.parse(await readFile(path.join(ROOT, "userscript.project.json"), "utf8"));\nconst packageJson = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));\nif (project.mode !== "bundle" || project.build?.adapter !== "esbuild") throw new Error("Bundle project must use the esbuild adapter");\nif (project.build.minify !== false) throw new Error("Userscript bundle output must remain unminified");\nconst metadata = [\n  "// ==UserScript==",\n  "// @name         " + project.name,\n  "// @namespace    " + project.release.githubRepository,\n  "// @version      " + packageJson.version,\n  "// @description  " + project.name,\n  ...project.targets.matches.map((match) => "// @match        " + match),\n  ...project.permissions.grants.map((grant) => "// @grant        " + grant),\n  ...project.permissions.connect.map((host) => "// @connect      " + host),\n  "// @run-at       document-idle",\n  "// @license      MIT",\n  "// ==/UserScript==",\n  ""\n].join("\\n");\nconst output = path.resolve(ROOT, project.build.output);\nawait mkdir(path.dirname(output), { recursive: true });\nawait build({\n  entryPoints: [path.resolve(ROOT, project.build.entry)],\n  outfile: output,\n  bundle: true,\n  format: "iife",\n  target: "es2020",\n  minify: false,\n  sourcemap: false,\n  legalComments: "inline",\n  banner: { js: metadata },\n  logLevel: "info"\n});\nconsole.log(project.id + ": " + project.build.output + " (version " + packageJson.version + ")");\n`,
+    "build.mjs": `import { build } from "esbuild";\nimport { mkdir, readFile } from "node:fs/promises";\nimport path from "node:path";\nimport { fileURLToPath } from "node:url";\n\nconst ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)));\nconst project = JSON.parse(await readFile(path.join(ROOT, "userscript.project.json"), "utf8"));\nconst packageJson = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));\nif (project.mode !== "bundle" || project.build?.adapter !== "esbuild") throw new Error("Bundle project must use the esbuild adapter");\nif (project.build.minify !== false) throw new Error("Userscript bundle output must remain unminified");\nconst metadata = [\n  "// ==UserScript==",\n  "// @name         " + project.name,\n  "// @namespace    " + project.release.githubRepository,\n  "// @version      " + packageJson.version,\n  "// @description  " + project.description,\n  ...project.targets.matches.map((match) => "// @match        " + match),\n  ...project.permissions.grants.map((grant) => "// @grant        " + grant),\n  ...project.permissions.connect.map((host) => "// @connect      " + host),\n  "// @run-at       document-idle",\n  "// @license      MIT",\n  "// ==/UserScript==",\n  ""\n].join("\\n");\nconst output = path.resolve(ROOT, project.build.output);\nawait mkdir(path.dirname(output), { recursive: true });\nawait build({\n  entryPoints: [path.resolve(ROOT, project.build.entry)],\n  outfile: output,\n  bundle: true,\n  format: "iife",\n  target: "es2020",\n  minify: false,\n  sourcemap: false,\n  legalComments: "inline",\n  banner: { js: metadata },\n  logLevel: "info"\n});\nconsole.log(project.id + ": " + project.build.output + " (version " + packageJson.version + ")");\n`,
     "src/index.ts": `const panel = document.createElement("aside");\npanel.textContent = "Bundle project scaffold";\npanel.dataset.userscriptForge = "bundle";\ndocument.documentElement.append(panel);\n`,
     "tests/source.test.mjs": `import assert from "node:assert/strict";\nimport { readFile } from "node:fs/promises";\nimport test from "node:test";\n\nconst project = JSON.parse(await readFile(new URL("../userscript.project.json", import.meta.url), "utf8"));\nconst source = await readFile(new URL("../src/index.ts", import.meta.url), "utf8");\n\ntest("bundle project declares the central esbuild adapter", () => {\n  assert.equal(project.mode, "bundle");\n  assert.equal(project.build.adapter, "esbuild");\n  assert.equal(project.build.minify, false);\n  assert.match(source, /userscriptForge/);\n});\n`,
   } : {
@@ -438,10 +447,13 @@ async function validateProject(args, json) {
 }
 
 async function buildProject(args, json) {
+  requireSupportedRuntime("build");
   const projectRoot = projectPathFromArg(args[0]);
   const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
   if (project.mode !== "bundle") throw new Error("build only applies to bundle projects");
   if (project.build?.adapter !== "esbuild") throw new Error("Bundle project must declare the esbuild adapter");
+  const validation = await collectProjectValidation(projectRoot);
+  if (!validation.checks.bundleConfig) throw new Error("Bundle project manifest has an unsafe or unsupported build configuration");
   const buildScript = path.join(projectRoot, "build.mjs");
   await access(buildScript, constants.F_OK);
   let output;
@@ -486,6 +498,7 @@ async function candidate(args, json) {
   const artifactExists = artifactPath ? await access(artifactPath, constants.F_OK).then(() => true).catch(() => false) : false;
   const artifactSha256 = artifactExists ? createHash("sha256").update(await readFile(artifactPath)).digest("hex") : null;
   const checks = [
+    { id: "runtime-baseline", status: runtimePass() ? "PASS" : "FAIL" },
     { id: "project-validation", status: validation.pass ? "PASS" : "FAIL" },
     { id: "single-artifact", status: artifactExists ? "PASS" : "FAIL" },
     { id: "git-source-commit", status: sourceCommit ? "PASS" : "FAIL" },
