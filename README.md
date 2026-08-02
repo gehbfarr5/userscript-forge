@@ -2,7 +2,7 @@
 
 Userscript Forge 是面向 Codex、Claude 等 Agent 的用户脚本开发、测试和发布控制面。
 
-当前状态：Stage A 本机骨架，尚未连接远程 GitHub、Greasy Fork、浏览器或真机。
+当前状态：Stage A 已完成，中央仓库已连接公开 GitHub；Greasy Fork、浏览器和真机尚未接入。
 
 ## 统一入口
 
@@ -17,4 +17,3 @@ pnpm run forge -- status --json
 ## 公私边界
 
 这个仓库可以公开；登录页面、完整 HTML、Cookie 邻近材料、HAR、截图、录屏、设备标识和本机路径不得进入仓库。发布工具将使用公开文件白名单，并在后续阶段加入密钥与隐私扫描。
-

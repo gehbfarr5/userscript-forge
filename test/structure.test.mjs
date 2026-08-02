@@ -38,3 +38,8 @@ test("runtime contract is pinned to Node 24 and pnpm 11.1.1", async () => {
   assert.equal(packageJson.packageManager, "pnpm@11.1.1");
   assert.equal((await read(".node-version")).trim(), "24.18.0");
 });
+
+test("central repository has a public remote", async () => {
+  const gitConfig = await read(".git/config");
+  assert.match(gitConfig, /url = https:\/\/github\.com\/[^\s]+\/userscript-forge\.git/);
+});

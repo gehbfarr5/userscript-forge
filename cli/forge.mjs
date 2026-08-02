@@ -107,15 +107,18 @@ async function validate(json) {
 }
 
 async function status(json) {
+  const gitConfig = await readFile(path.join(ROOT, ".git", "config"), "utf8");
+  const remoteMatch = gitConfig.match(/\n\s*url\s*=\s*(\S+)/);
   const result = {
     stage: "A",
-    remoteConfigured: false,
+    remoteConfigured: Boolean(remoteMatch),
+    remoteUrl: remoteMatch?.[1] ?? null,
     browserConnected: false,
     deviceConnected: false,
     publicationEnabled: false,
   };
   if (json) console.log(JSON.stringify(result, null, 2));
-  else console.log([`Stage: ${result.stage}`, "Remote: not configured", "Browser: not connected", "Device: not connected", "Publication: disabled"].join("\n"));
+  else console.log([`Stage: ${result.stage}`, `Remote: ${result.remoteConfigured ? result.remoteUrl : "not configured"}`, "Browser: not connected", "Device: not connected", "Publication: disabled"].join("\n"));
 }
 
 async function main() {
