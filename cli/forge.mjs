@@ -21,6 +21,7 @@ const REQUIRED_PATHS = [
   "policies/public-boundary.json",
   "docs/contracts/lifecycle.md",
   "registry/capabilities.json",
+  "probes/mobile/README.md",
 ];
 
 function usage() {

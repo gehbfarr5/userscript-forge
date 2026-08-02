@@ -22,6 +22,7 @@ test("central scaffold contains the public contract", async () => {
     "policies/public-boundary.json",
     "docs/contracts/lifecycle.md",
     "registry/capabilities.json",
+    "probes/mobile/README.md",
   ]) {
     await access(path.join(ROOT, relativePath), constants.F_OK);
   }
