@@ -83,7 +83,7 @@
       "scope": "Greasy Fork publication and synchronization",
       "status": "BLOCKED",
       "verification": "structured-evidence",
-      "evidenceRunId": "greasyfork-security-gate-2026-08-02T09-03-00Z",
+      "evidenceRunId": "greasyfork-security-gate-2026-08-02T09-59-50Z",
       "note": "The authorized account is signed in, but Greasy Fork requires a verified email, 2FA, or third-party login before script publication; no account security setting was changed by the probe."
     },
     {
