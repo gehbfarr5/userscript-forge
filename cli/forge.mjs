@@ -37,6 +37,7 @@ function usage() {
   console.log("greasyfork-handoff <path> --candidate PATH --script-id ID [--base-url URL]: validate and emit the browser publication handoff");
   console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--emulator/--oneplus/--github/--greasyfork evidence paths");
   console.log("record-capability <id> <evidence> [--dry-run] [--json]: promote one validated private evidence record into the public capability registry");
+  console.log("new --verify ID (repeatable): declare a concrete required verification target such as android-emulator-firefox-manager or oneplus-15-firefox-manager");
   console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  release-check <path> [options]   Run the fail-closed pre-publication gate\n  publish-github <path> [options] Publish a checked candidate to a GitHub Release\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n\nrelease-check evidence options:\n  --manager PATH --device PATH (legacy generic device slot)\n  --emulator PATH --oneplus PATH (explicit Android userscript targets)\n  --github PATH --greasyfork PATH\n\npublish-github options:\n  --release-evidence PATH (required; a matching release-check PASS result)\n  --tag vX.Y.Z --title TEXT --notes TEXT --dry-run\n`);
 }
 
@@ -294,6 +295,7 @@ function parseNewOptions(args) {
   const options = {
     mode: "direct",
     matches: [],
+    verifications: [],
     grants: [],
     grantReasons: new Map(),
     connects: [],
@@ -310,7 +312,7 @@ function parseNewOptions(args) {
     else if (option === "--no-git") options.gitInit = false;
     else if (option === "--greasy-fork") options.greasyForkRequired = true;
     else if (option === "--no-greasy-fork") options.greasyForkRequired = false;
-    else if (["--name", "--description", "--repository", "--namespace", "--release-branch", "--mode", "--match", "--grant", "--connect", "--grant-reason", "--connect-reason"].includes(option)) {
+    else if (["--name", "--description", "--repository", "--namespace", "--release-branch", "--mode", "--match", "--verify", "--grant", "--connect", "--grant-reason", "--connect-reason"].includes(option)) {
       const value = takeOptionValue(args, index, option);
       index += 1;
       if (option === "--name") options.name = singleLine(value, "--name");
@@ -320,6 +322,11 @@ function parseNewOptions(args) {
       else if (option === "--release-branch") options.releaseBranch = singleLine(value, "--release-branch");
       else if (option === "--mode") options.mode = value;
       else if (option === "--match") options.matches.push(singleLine(value, "--match"));
+      else if (option === "--verify") {
+        const verification = singleLine(value, "--verify");
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(verification)) throw new Error("--verify must be a lowercase kebab-case capability id");
+        options.verifications.push(verification);
+      }
       else if (option === "--grant") options.grants.push(singleLine(value, "--grant"));
       else if (option === "--connect") options.connects.push(singleLine(value, "--connect"));
       else if (option === "--grant-reason") {
@@ -371,7 +378,7 @@ function projectManifest(options) {
     name: options.name,
     description: options.description,
     mode: options.mode,
-    targets: { matches: options.matches, requiredVerification: ["local-static", "local-direct-browser", "declared-platforms"] },
+    targets: { matches: options.matches, requiredVerification: [...new Set(["local-static", "local-direct-browser", "declared-platforms", ...options.verifications])] },
     permissions: { grants: options.grants, connect: options.connects, justifications },
     release: { githubRepository: options.repository, greasyForkRequired: options.greasyForkRequired, releaseBranch: options.releaseBranch ?? "release" },
   };
@@ -385,7 +392,8 @@ function generatedReadme(options) {
   const bundleSteps = options.mode === "bundle"
     ? "\n## Build\n\nInstall the pinned build dependency, then create the readable release artifact:\n\nCommands:\npnpm install\npnpm run build\npnpm test\n\nTracked output: dist/" + options.id + ".user.js\nThe output is intentionally unminified and carries metadata generated from userscript.project.json and package.json.\n"
     : "";
-  return `# ${options.name}\n\n${options.description}\n\n- Mode: \`${options.mode}\`\n- Declared matches: ${options.matches.map((match) => `\`${match}\``).join(", ")}\n- GitHub: ${options.repository}\n- Greasy Fork required: ${options.greasyForkRequired ? "yes" : "no"}\n\n## Local workflow\n\nRun the central project validator before creating a release candidate:\n\n\`\`\`text\npnpm run forge -- validate-project ../projects/${options.id} --json\n\`\`\`\n${bundleSteps}\nThe generated script is a scaffold. Add behavior only after the target matrix and permission reasons are confirmed.\n`;
+  const requiredVerification = [...new Set(["local-static", "local-direct-browser", "declared-platforms", ...options.verifications])];
+  return `# ${options.name}\n\n${options.description}\n\n- Mode: \`${options.mode}\`\n- Declared matches: ${options.matches.map((match) => `\`${match}\``).join(", ")}\n- Required verification: ${requiredVerification.map((item) => `\`${item}\``).join(", ")}\n- GitHub: ${options.repository}\n- Greasy Fork required: ${options.greasyForkRequired ? "yes" : "no"}\n\n## Local workflow\n\nRun the central project validator before creating a release candidate:\n\n\`\`\`text\npnpm run forge -- validate-project ../projects/${options.id} --json\n\`\`\`\n${bundleSteps}\nThe generated script is a scaffold. Add behavior only after the target matrix and permission reasons are confirmed.\n`;
 }
 
 function regexEscape(value) {
@@ -447,7 +455,7 @@ async function newProject(args, json) {
       execFileSync("git", ["init", "-b", "main"], { cwd: projectRoot, stdio: "ignore" });
     }
   }
-  const result = { id: options.id, mode: options.mode, projectRoot: options.dryRun ? null : projectRoot, files: Object.keys(files).concat("LICENSE"), gitInitialized: !options.dryRun && options.gitInit, dryRun: options.dryRun };
+  const result = { id: options.id, mode: options.mode, requiredVerification: manifest.targets.requiredVerification, projectRoot: options.dryRun ? null : projectRoot, files: Object.keys(files).concat("LICENSE"), gitInitialized: !options.dryRun && options.gitInit, dryRun: options.dryRun };
   if (json || options.dryRun) console.log(JSON.stringify(result, null, 2));
   else console.log(`Created ${projectRoot}\nRun: pnpm run forge -- validate-project ../projects/${options.id} --json`);
 }

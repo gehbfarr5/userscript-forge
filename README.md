@@ -15,7 +15,7 @@ pnpm run forge -- status --json
 pnpm run forge -- validate-project ../projects/userscript-environment-check
 pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.json
 pnpm run forge -- record-capability <capability-id> ../private/evidence/<project>/<run>/result.json --dry-run --json
-pnpm run forge -- new my-script --name "My Script" --description "..." --repository https://github.com/<owner>/my-script --match "https://example.com/*" --dry-run --json
+pnpm run forge -- new my-script --name "My Script" --description "..." --repository https://github.com/<owner>/my-script --match "https://example.com/*" --verify oneplus-15-firefox-manager --dry-run --json
 pnpm run forge -- new my-bundle --mode bundle --name "My Bundle" --description "..." --repository https://github.com/<owner>/my-bundle --match "https://example.com/*"
 pnpm run forge -- build ../projects/my-bundle --json
 pnpm run forge -- candidate ../projects/my-script --json
@@ -30,7 +30,7 @@ pnpm run forge -- publish-github ../projects/my-script --release-evidence ../pri
 
 `validate-evidence` 只接受工作区私密区中的结构化结果；`PASS` 结果必须让所有检查项都是 `PASS`。管理器或设备探针遇到环境限制时必须保留 `BLOCKED`，不能用直接脚本测试冒充真实注入。
 
-`new` 是独立项目的统一生成入口。`direct` 生成可读单文件脚本；`bundle` 生成 TypeScript 源码、固定 `esbuild@0.28.1` 构建适配器和可追踪的 `dist/*.user.js` 输出。bundle 候选必须先运行 `build`，再通过项目校验和静态候选锁定。
+`new` 是独立项目的统一生成入口。`direct` 生成可读单文件脚本；`bundle` 生成 TypeScript 源码、固定 `esbuild@0.28.1` 构建适配器和可追踪的 `dist/*.user.js` 输出。用可重复的 `--verify <capability-id>` 声明该脚本真正必须支持的平台；例如同时需要 Android 模拟器和一加 15 时分别声明 `android-emulator-firefox-manager` 与 `oneplus-15-firefox-manager`。bundle 候选必须先运行 `build`，再通过项目校验和静态候选锁定。
 
 `candidate` 只锁定“干净 Git 提交 + 静态门禁 + 候选 SHA-256”，并把结果写入私密 evidence；它明确不会把管理器、设备或发布状态提升为已验证。
 

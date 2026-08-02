@@ -119,8 +119,10 @@ test("bundle projects require the readable esbuild adapter", async () => {
   };
   assert.equal(validate(project), true);
   assert.equal(validate({ ...project, build: { ...project.build, minify: true } }), false);
+  assert.equal(validate({ ...project, targets: { ...project.targets, requiredVerification: ["OnePlus-15"] } }), false);
   const cli = await read("cli/forge.mjs");
   assert.match(cli, /build <path> \[--json\]/);
+  assert.match(cli, /--verify ID/);
   assert.match(cli, /release-check <path> \[options\]/);
   assert.match(cli, /record-capability <id> <evidence>/);
   assert.match(cli, /forbiddenEvidenceKeys/);
