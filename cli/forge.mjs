@@ -120,8 +120,16 @@ async function validate(json) {
 async function status(json) {
   const gitConfig = await readFile(path.join(ROOT, ".git", "config"), "utf8");
   const remoteMatch = gitConfig.match(/\n\s*url\s*=\s*(\S+)/);
+  const directEvidencePath = path.resolve(ROOT, "..", "private", "evidence", "userscript-environment-check", "stage-b-direct", "result.json");
   const managerEvidencePath = path.resolve(ROOT, "..", "private", "evidence", "userscript-environment-check", "stage-b-manager", "result.json");
+  let directProbe = "NOT_RUN";
   let managerProbe = "NOT_RUN";
+  try {
+    const directEvidence = JSON.parse(await readFile(directEvidencePath, "utf8"));
+    directProbe = directEvidence.status ?? "NOT_RUN";
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
   try {
     const managerEvidence = JSON.parse(await readFile(managerEvidencePath, "utf8"));
     managerProbe = managerEvidence.status ?? "NOT_RUN";
@@ -132,14 +140,15 @@ async function status(json) {
     stage: "B2",
     remoteConfigured: Boolean(remoteMatch),
     remoteUrl: remoteMatch?.[1] ?? null,
-    directBrowserVerified: true,
+    directProbe,
+    directBrowserVerified: directProbe === "PASS",
     managerProbe,
     managerInjectionVerified: managerProbe === "PASS",
     deviceConnected: false,
     publicationEnabled: false,
   };
   if (json) console.log(JSON.stringify(result, null, 2));
-  else console.log([`Stage: ${result.stage}`, `Remote: ${result.remoteConfigured ? result.remoteUrl : "not configured"}`, `Direct browser: ${result.directBrowserVerified ? "verified" : "not verified"}`, `Manager probe: ${result.managerProbe}`, `Manager injection: ${result.managerInjectionVerified ? "verified" : "not verified"}`, "Device: not connected", "Publication: disabled"].join("\n"));
+  else console.log([`Stage: ${result.stage}`, `Remote: ${result.remoteConfigured ? result.remoteUrl : "not configured"}`, `Direct probe: ${result.directProbe}`, `Direct browser: ${result.directBrowserVerified ? "verified" : "not verified"}`, `Manager probe: ${result.managerProbe}`, `Manager injection: ${result.managerInjectionVerified ? "verified" : "not verified"}`, "Device: not connected", "Publication: disabled"].join("\n"));
 }
 
 function projectPathFromArg(argument) {
