@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "projects": [
+    {
+      "id": "userscript-environment-check",
+      "repository": "https://github.com/gehbfarr5/userscript-environment-check",
+      "mode": "direct",
+      "status": "local-static-pass",
+      "greasyFork": "not-configured"
+    }
+  ]
+}
+
