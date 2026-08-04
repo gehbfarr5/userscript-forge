@@ -14,8 +14,8 @@
       "scope": "Mac Chrome with Tampermonkey",
       "status": "PASS",
       "verification": "structured-evidence",
-      "evidenceRunId": "stage-b-manager-v013-2026-08-02T10-23-20-000Z",
-      "note": "The exact version 0.1.3 canary updates through Tampermonkey 5.5.0 in the real Chrome user profile and injects into the controlled page; GM storage is available. Earlier retry results remain preserved as history."
+      "evidenceRunId": "stage-b-manager-v013-forum-desktop-layout-enhancer-2026-08-04T11-29-23Z",
+      "note": "Current evidence: stage-b-manager-v013 PASS. Previous runs remain in private evidence."
     },
     {
       "id": "android-emulator-firefox-manager",
