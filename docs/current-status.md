@@ -16,12 +16,18 @@ artifact evidence.
 - Generic Android emulator, OnePlus Appium, iOS Simulator and iPhone Appium
   backends have structured evidence. Generic backend evidence never proves a
   userscript-manager gate.
-- The current Android sample source is commit
-  `b87a61073b29f9718bda4cbdcf1ceaac3583cc6b`; its readable artifact SHA-256 is
-  `85089cca703bccc660f0e6e7e6efcee649a316b5901219b84f3614aa0c842595`.
-- The sample implementation has PASS static/build tests. Historical local
-  direct-browser and Mac Chrome + Tampermonkey evidence belongs to the prior
-  source commit and must be rerun after a new clean candidate lock.
+- The current forum sample candidate is source commit
+  `d765bc032ffde1b6c098560f083da82b0576283b`; its readable artifact SHA-256 is
+  `b189308abf515b6d12cbbffbd24a3f5acfd51453c9b36ee6d021760d49a7c097`.
+- The current candidate has PASS static/build tests and a clean candidate lock
+  at `candidate-forum-desktop-layout-enhancer-2026-08-04T10-47-57-330Z`.
+  Historical direct-browser and Mac Chrome manager evidence belongs to older
+  commits and cannot be reused for this candidate.
+- The current Android emulator Firefox + Tampermonkey manager gate is PASS for
+  this candidate. It proves the real manager installation, DOM injection,
+  GM-storage lifecycle, 960px layout, actual horizontal scrolling and rollback
+  toggle on the exact instrumented Fenix build; it does not prove OnePlus OEM
+  behavior.
 - The exact instrumented Fenix APK has schema-v2 PASS build evidence: 23
   HomeActivity tests, stage/package overlay, official Gecko payload equality,
   compiled manifest marker, arm64-only ABI and APK signature all pass. Its
@@ -32,18 +38,18 @@ artifact evidence.
 
 - Stock Firefox/GeckoDriver Android existing-session attach is unsupported.
   Native Appium evidence is diagnostic-only and cannot prove DOM injection.
-- A clean candidate for source commit `b87a61073b29f9718bda4cbdcf1ceaac3583cc6b`
-  is locked as
-  `candidate-forum-desktop-layout-enhancer-2026-08-04T09-55-06-178Z`.
-  Mac Chrome + Tampermonkey and the instrumented Fenix live
-  Tampermonkey/project injection run must both be rerun against that same
-  candidate before they can produce current project evidence.
+- Mac Chrome + Tampermonkey still needs a current-candidate manager evidence
+  run. The browser is waiting at the extension's security confirmation page;
+  the browser automation surface cannot click that page automatically.
 - OnePlus 15 must use stock Firefox for the final acceptance gate. A PASS must
   include an explicit final-user-acceptance record bound to the candidate;
   generic Appium or a manual statement without that binding is insufficient.
+  The latest wireless discovery found no mDNS service or reachable documented
+  endpoint; only the local emulator was attached, so no OnePlus run was
+  started.
 - The current sample has public source on GitHub but no matching GitHub
   Release evidence and no Greasy Fork project evidence. Publication remains
-  closed until all pre-publication gates pass.
+  closed until Chrome, OnePlus and the pre-publication release gate pass.
 
 ## Deliberately deferred
 

@@ -7,6 +7,23 @@
       "mode": "direct",
       "status": "canary-github-v0.1.3-greasyfork-v0.1.3-pass",
       "greasyFork": "browser-orchestrated-v0.1.3-public-sync-pass"
+    },
+    {
+      "id": "forum-desktop-layout-enhancer",
+      "repository": "https://github.com/gehbfarr5/forum-desktop-layout-enhancer",
+      "mode": "bundle",
+      "status": "candidate-d765bc0-android-pass-release-blocked",
+      "candidate": {
+        "sourceCommit": "d765bc032ffde1b6c098560f083da82b0576283b",
+        "artifactSha256": "b189308abf515b6d12cbbffbd24a3f5acfd51453c9b36ee6d021760d49a7c097",
+        "candidateEvidence": "candidate-forum-desktop-layout-enhancer-2026-08-04T10-47-57-330Z"
+      },
+      "verification": {
+        "androidEmulator": "pass",
+        "chromeTampermonkey": "pending-user-extension-confirmation",
+        "oneplus15Firefox": "blocked-no-verified-wireless-transport"
+      },
+      "publication": "not-published"
     }
   ]
 }
