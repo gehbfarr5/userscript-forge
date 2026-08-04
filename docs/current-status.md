@@ -44,9 +44,13 @@ artifact evidence.
 - OnePlus 15 must use stock Firefox for the final acceptance gate. A PASS must
   include an explicit final-user-acceptance record bound to the candidate;
   generic Appium or a manual statement without that binding is insufficient.
-  Two fresh wireless discoveries found no mDNS service or reachable documented
-  endpoint; only the local emulator was attached, so no OnePlus run was
-  started. A real-device run remains required after the phone is online.
+  The documented home Wi-Fi ADB endpoint is now verified live against PLK110,
+  the expected serial, and the factory Wi-Fi MAC; the phone-to-host handoff
+  address on the current LAN also returned HTTP 200. The current real-device
+  gate reaches Firefox, but remains BLOCKED because stock Firefox/GeckoView's
+  native Appium page-source path does not expose the controlled install page
+  within the MCP budget. This is an automation-capability boundary, not an ADB
+  connectivity failure.
 - The current sample has public source on GitHub but no matching GitHub
   Release evidence and no Greasy Fork project evidence. Publication remains
   closed until Chrome, OnePlus and the pre-publication release gate pass.

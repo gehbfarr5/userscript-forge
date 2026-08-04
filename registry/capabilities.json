@@ -38,7 +38,7 @@
       "scope": "OnePlus 15 Firefox userscript manager",
       "status": "BLOCKED",
       "verification": "structured-evidence",
-      "note": "Current evidence: oneplus-15-firefox-manager BLOCKED. Previous runs remain in private evidence.",
+      "note": "Current evidence: home Wi-Fi ADB and phone-to-host handoff PASS, but the stock Firefox/GeckoView manager gate remains BLOCKED at native Appium page-source discovery. Previous runs remain in private evidence.",
       "evidenceRunId": "oneplus-current-2026-08-04T11-02-00Z"
     },
     {

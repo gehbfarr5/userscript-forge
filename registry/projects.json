@@ -21,7 +21,7 @@
       "verification": {
         "androidEmulator": "pass",
         "chromeTampermonkey": "pass-current-candidate-production-page",
-        "oneplus15Firefox": "blocked-no-verified-wireless-transport"
+        "oneplus15Firefox": "blocked-stock-firefox-appium-page-source-after-wireless-pass"
       },
       "publication": "not-published"
     }
