@@ -30,7 +30,7 @@ pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.j
 4. 打开 `http://10.0.2.2:<port>/test-pages/smoke.html`，结构化断言必须观察到 `Injection: PASS`、管理器名称和 `GM storage: AVAILABLE`。
 4. 结果默认写入工作区外的 `private/evidence/userscript-environment-check/android-emulator-manager/<run-id>/result.json`（也可用 `--evidence-path` 显式指定私密路径），使用中央 `schemas/result.schema.json` 和 `validate-evidence` 校验；结果必须绑定 canary 提交和 SHA-256。每次运行独立留档，不覆盖历史结果。
 
-真实脚本不应复制 canary 的项目路径。可在项目 `userscript.project.json` 的 `targets.mobileVerification` 中声明 `/test-pages/install.html`、公开目标 smoke URL、Appium 页面源中可观察的 `requiredText` 和该项目实际需要的 `requiredChecks`；`forge mobile-handoff` 会将当前项目候选绑定到这些值。没有这个声明时，handoff 才使用本目录的 canary 默认 fixture。
+真实脚本不应复制 canary 的项目路径。可在项目 `userscript.project.json` 的 `targets.mobileVerification` 中声明 `/test-pages/install.html`、公开目标 smoke URL、页面源中可观察的 `requiredText`、该项目实际需要的 `requiredChecks` 和 `automationAssertions`；`forge mobile-handoff` 会将当前项目候选绑定到这些值。`automationAssertions.domMarker` 是必需的安全选择器/属性/值比较，`layout` 与 `toggle` 按项目需要选填。中央环境只执行这个有限断言 DSL，不把某个样板的 DOM ID、宽度或业务逻辑硬编码成全局标准。没有整个 mobile 声明时，handoff 才使用本目录的 canary 默认 fixture。
 
 建议检查 ID：`firefox-launched`、`manager-install-surface`、`script-installed`、`manager-injection`、`gm-storage`。结果必须按 `userscript-canary.manifest.json` 的 `requiredChecks` 完整覆盖；不要写入设备 serial、局域网地址、Firefox profile 或登录态到公开仓库。
 
@@ -46,9 +46,19 @@ pnpm run forge -- mobile-handoff ../projects/userscript-environment-check \
   --target oneplus --base-url http://<phone-reachable-host>:8765 --json
 ```
 
-仓外执行器仍使用 `scripts/android-emulator-userscript-canary.mjs`，但必须提供 `--target oneplus --serial <explicit-real-serial> --base-url <phone-reachable-host>`；它会先检查显式设备为 `device`、Firefox 已安装、设备型号包含 `PLK110`，再执行同样的安装页、管理器注入和 GM 存储断言。禁止 `--start-emulator`，禁止 emulator serial，禁止 `pm clear`、卸载或修改 Firefox/Tampermonkey 内部存储。
+仓外执行器仍使用显式 real-device serial，先检查设备身份、原版 Firefox、管理器安装表面和脚本已安装。模拟器上的 instrumented Fenix 负责提供真实 Tampermonkey/DOM 自动化证据；它不能冒充原版 Firefox。OnePlus 15 保留为原版 Firefox 的生产体验门禁，页面级注入由用户做最后一次可见验收。禁止 `--start-emulator`，禁止 emulator serial，禁止 `pm clear`、卸载或修改 Firefox/Tampermonkey 内部存储。
 
-外部结果的 `probe` 必须为 `oneplus-15-firefox-manager`，`environment.target` 必须为 `oneplus-15-firefox-manager`，并默认写入 `private/evidence/userscript-environment-check/oneplus-15-firefox-manager/<run-id>/result.json`；中央 `validate-evidence` 会使用对应 manifest 校验 required checks、候选提交和 SHA-256。
+外部设备观察结果的 `probe` 必须为 `oneplus-15-firefox-manager`，`environment.target` 必须为 `oneplus-15-firefox-manager`，并默认写入 `private/evidence/<project>/oneplus-15-firefox-manager/<run-id>/result.json`。在用户确认前它保持 `BLOCKED`，但 `firefox-launched`、`manager-install-surface` 和 `script-installed` 必须有真实 PASS。用户完成项目声明的 `acceptanceChecks` 后，中央命令读取候选、模拟器 PASS 和该设备观察，生成新的最终 PASS：
+
+```text
+pnpm run forge -- finalize-oneplus-acceptance ../projects/<project> \
+  --candidate ../private/evidence/<project>/candidate/<candidate>.json \
+  --emulator ../private/evidence/<project>/android-emulator-manager/<run>/result.json \
+  --device-observation ../private/evidence/<project>/oneplus-15-firefox-manager/<observation>/result.json \
+  --confirmed --json
+```
+
+`--confirmed` 只能在用户明确完成最后验收后使用。生成结果必须含 `user-final-acceptance` PASS、原版 Firefox 标记、确认时间和双门禁 runId，并继续绑定同一候选；设备 serial、Session、Cookie 和账号材料不得写入。
 
 示例（由仓外编排器执行，不在 Codex 沙箱中执行设备 I/O）：
 

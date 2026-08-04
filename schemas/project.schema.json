@@ -42,7 +42,47 @@
               },
               "additionalProperties": false
             },
-            "requiredChecks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+            "requiredChecks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "acceptanceChecks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" } },
+            "automationAssertions": {
+              "type": "object",
+              "required": ["domMarker"],
+              "properties": {
+                "domMarker": {
+                  "type": "object",
+                  "required": ["selector", "attribute", "equals"],
+                  "properties": {
+                    "selector": { "type": "string", "minLength": 1 },
+                    "attribute": { "type": "string", "pattern": "^[a-zA-Z_:][-a-zA-Z0-9_:.]*$" },
+                    "equals": { "type": "string", "minLength": 1 }
+                  },
+                  "additionalProperties": false
+                },
+                "layout": {
+                  "type": "object",
+                  "required": ["selector", "width", "horizontallyScrollable"],
+                  "properties": {
+                    "selector": { "type": "string", "minLength": 1 },
+                    "width": { "type": "number", "exclusiveMinimum": 0 },
+                    "horizontallyScrollable": { "const": true }
+                  },
+                  "additionalProperties": false
+                },
+                "toggle": {
+                  "type": "object",
+                  "required": ["selector", "stateAttribute", "enabledValue", "disabledValue"],
+                  "properties": {
+                    "selector": { "type": "string", "minLength": 1 },
+                    "stateAttribute": { "type": "string", "pattern": "^[a-zA-Z_:][-a-zA-Z0-9_:.]*$" },
+                    "enabledValue": { "type": "string" },
+                    "disabledValue": { "type": "string" },
+                    "enabledRootClass": { "type": "string", "pattern": "^[a-zA-Z_][-a-zA-Z0-9_]*$" }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
           },
           "additionalProperties": false
         }
@@ -65,6 +105,7 @@
       "properties": {
         "githubRepository": { "type": "string", "minLength": 1 },
         "greasyForkRequired": { "type": "boolean" },
+        "greasyForkAdultContent": { "type": "boolean" },
         "releaseBranch": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false

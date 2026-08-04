@@ -7,6 +7,10 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import Ajv2020 from "ajv/dist/2020.js";
+import {
+  buildOnePlusAcceptanceEvidence,
+  inspectOnePlusAcceptanceInputs,
+} from "../adapters/mobile-orchestrator/oneplus-user-acceptance.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REQUIRED_PATHS = [
@@ -25,6 +29,8 @@ const REQUIRED_PATHS = [
   "schemas/mobile-userscript-probe.schema.json",
   "schemas/greasyfork-publication-probe.schema.json",
   "policies/public-boundary.json",
+  "adapters/mobile-orchestrator/oneplus-user-acceptance.mjs",
+  "docs/current-status.md",
   "docs/contracts/lifecycle.md",
   "docs/contracts/intake.md",
   "registry/capabilities.json",
@@ -38,11 +44,13 @@ const REQUIRED_PATHS = [
 
 function usage() {
   console.log("mobile-handoff <path> --candidate PATH [--target emulator|oneplus] [--base-url URL] [--port NUMBER]: validate and emit the external mobile userscript handoff");
-  console.log("greasyfork-handoff <path> --candidate PATH [--script-id ID|new] [--base-url URL]: validate and emit the browser publication handoff");
+  console.log("greasyfork-handoff <path> --candidate PATH --release-evidence PATH [--script-id ID|new] [--base-url URL]: validate a pre-publication PASS and emit the browser publication handoff");
   console.log("release-check <path> [options]: provide --candidate, --require, and matching --manager/--device/--emulator/--oneplus/--github/--greasyfork evidence paths");
   console.log("record-capability <id> <evidence> [--dry-run] [--json]: promote one validated private evidence record into the public capability registry");
+  console.log("finalize-oneplus-acceptance <path> --candidate PATH --emulator PATH --device-observation PATH --confirmed: bind explicit final user acceptance to the candidate");
   console.log("validate-work-order <path> [--json]: validate one private structured intake work order");
   console.log("new --verify ID (repeatable): declare a concrete required verification target such as android-emulator-firefox-manager or oneplus-15-firefox-manager");
+  console.log("new --greasy-fork-adult: declare that Greasy Fork must mark the script as adult content");
   console.log(`Userscript Forge CLI (Stage B2)\n\nCommands:\n  doctor [--json]    Check runtime and repository prerequisites\n  validate [--json] Check the public scaffold and policy files\n  validate-project <path> [--json]  Check one independent script repository\n  validate-evidence <path> [--json] Validate one private structured result\n  build <path> [--json]             Build a bundle project into its tracked dist artifact\n  new <id> [options] Create an independent userscript project\n  candidate <path> [--json] Lock a clean static candidate and write private evidence\n  release-check <path> [options]   Run the fail-closed pre-publication gate\n  publish-github <path> [options] Publish a checked candidate to a GitHub Release\n  status [--json]   Show the current local stage\n\nnew options:\n  --name TEXT --description TEXT --repository URL --match PATTERN (repeatable)\n  --grant NAME --grant-reason NAME=TEXT (repeatable, paired)\n  --connect HOST --connect-reason HOST=TEXT (repeatable, paired)\n  --namespace URL --release-branch NAME --mode direct|bundle --greasy-fork | --no-greasy-fork\n  --dry-run (render without writing) --no-git (do not initialize Git)\n\nrelease-check evidence options:\n  --manager PATH --device PATH (legacy generic device slot)\n  --emulator PATH --oneplus PATH (explicit Android userscript targets)\n  --github PATH --greasyfork PATH\n\npublish-github options:\n  --release-evidence PATH (required; a matching release-check PASS result)\n  --tag vX.Y.Z --title TEXT --notes TEXT --dry-run\n`);
 }
 
@@ -356,6 +364,7 @@ function parseNewOptions(args) {
     connects: [],
     connectReasons: new Map(),
     greasyForkRequired: true,
+    greasyForkAdultContent: false,
     dryRun: false,
     gitInit: true,
   };
@@ -367,6 +376,7 @@ function parseNewOptions(args) {
     else if (option === "--no-git") options.gitInit = false;
     else if (option === "--greasy-fork") options.greasyForkRequired = true;
     else if (option === "--no-greasy-fork") options.greasyForkRequired = false;
+    else if (option === "--greasy-fork-adult") options.greasyForkAdultContent = true;
     else if (["--name", "--description", "--repository", "--namespace", "--release-branch", "--mode", "--match", "--verify", "--grant", "--connect", "--grant-reason", "--connect-reason"].includes(option)) {
       const value = takeOptionValue(args, index, option);
       index += 1;
@@ -435,7 +445,7 @@ function projectManifest(options) {
     mode: options.mode,
     targets: { matches: options.matches, requiredVerification: [...new Set(["local-static", "local-direct-browser", "declared-platforms", ...options.verifications])] },
     permissions: { grants: options.grants, connect: options.connects, justifications },
-    release: { githubRepository: options.repository, greasyForkRequired: options.greasyForkRequired, releaseBranch: options.releaseBranch ?? "release" },
+    release: { githubRepository: options.repository, greasyForkRequired: options.greasyForkRequired, greasyForkAdultContent: options.greasyForkAdultContent, releaseBranch: options.releaseBranch ?? "release" },
   };
   if (options.mode === "bundle") {
     manifest.build = { adapter: "esbuild", entry: "src/index.ts", output: `dist/${options.id}.user.js`, minify: false };
@@ -559,14 +569,29 @@ function inspectEvidence(evidence, validator, evidencePath, mobileManifest = nul
     // release-check separately enforces PASS for any platform needed to publish.
     pass: !isMobileManagerEvidence || Boolean(mobileManifest && mobileTargetMatches && mobileRequiredChecksPresent && (evidence.status !== "PASS" || mobileRequiredChecksPass)),
   };
+  const onePlusPass = evidence.probe === "oneplus-15-firefox-manager" && evidence.status === "PASS";
+  const acceptance = evidence.environment?.acceptance;
+  const finalAcceptanceCheck = checksById.get("user-final-acceptance");
+  const userAcceptanceContract = {
+    applicable: onePlusPass,
+    checkPresent: !onePlusPass || Boolean(finalAcceptanceCheck),
+    checkPass: !onePlusPass || finalAcceptanceCheck?.status === "PASS",
+    modeMatches: !onePlusPass || acceptance?.mode === "user-final-acceptance",
+    confirmed: !onePlusPass || acceptance?.confirmed === true,
+    timestampPresent: !onePlusPass || (typeof acceptance?.confirmedAt === "string" && !Number.isNaN(Date.parse(acceptance.confirmedAt))),
+  };
+  userAcceptanceContract.pass = Object.entries(userAcceptanceContract)
+    .filter(([key]) => !["applicable", "pass"].includes(key))
+    .every(([, value]) => value === true);
   return {
     path: path.relative(path.resolve(ROOT, ".."), evidencePath),
     schemaValid,
     uniqueCheckIds,
     passStatusHasOnlyPassChecks,
     mobileContract,
+    userAcceptanceContract,
     errors: validator.errors ?? [],
-    pass: schemaValid && uniqueCheckIds && passStatusHasOnlyPassChecks && mobileContract.pass,
+    pass: schemaValid && uniqueCheckIds && passStatusHasOnlyPassChecks && mobileContract.pass && userAcceptanceContract.pass,
   };
 }
 
@@ -778,21 +803,23 @@ async function releaseCheck(args, json) {
   const checks = [];
   const addCheck = (id, status, details = undefined) => checks.push({ id, status, ...(details ? { details } : {}) });
   const validation = await collectProjectValidation(projectRoot);
+  const publicationAudit = options.required.has("github") || options.required.has("greasyfork");
   const declaredMobileTargets = new Set((project.targets?.requiredVerification || []).filter((item) => ["android-emulator-firefox-manager", "oneplus-15-firefox-manager"].includes(item)));
   addCheck("project-validation", validation.pass ? "PASS" : "FAIL", validation.checks);
-  if (project.release?.githubRepository && !options.required.has("github")) {
-    addCheck("release-github-evidence-required", "FAIL", {
-      reason: "Every project with a GitHub repository must include --require github.",
+  if (publicationAudit && project.release?.githubRepository && !options.required.has("github")) {
+    addCheck("publication-audit-github-evidence-required", "FAIL", {
+      reason: "The immediate publication transaction audit must include GitHub evidence.",
       repository: project.release.githubRepository,
     });
   }
-  if (project.release?.greasyForkRequired && !options.required.has("greasyfork")) {
-    addCheck("release-greasyfork-evidence-required", "FAIL", {
-      reason: "This project declares Greasy Fork as required; include --require greasyfork.",
+  if (publicationAudit && project.release?.greasyForkRequired && !options.required.has("greasyfork")) {
+    addCheck("publication-audit-greasyfork-evidence-required", "FAIL", {
+      reason: "The immediate publication transaction audit must include Greasy Fork evidence.",
     });
   }
   for (const declaredTarget of project.targets?.requiredVerification || []) {
     const requiredKind = DECLARED_RELEASE_REQUIREMENTS[declaredTarget];
+    if (["github", "greasyfork"].includes(requiredKind) && !publicationAudit) continue;
     if (requiredKind && !options.required.has(requiredKind)) {
       addCheck(`declared-${requiredKind}-evidence-required`, "FAIL", {
         declaredTarget,
@@ -865,10 +892,14 @@ async function releaseCheck(args, json) {
     probe: "release-check",
     ...(headResult.value ? { sourceCommit: headResult.value } : {}),
     ...(currentArtifactSha && artifactRelative ? { artifact: { path: `projects/${project.id}/${artifactRelative}`, sha256: currentArtifactSha } } : {}),
-    environment: { requiredEvidence: [...options.required], candidate: path.relative(path.resolve(ROOT, ".."), candidatePath) },
+    environment: {
+      phase: publicationAudit ? "publication-transaction-audit" : "pre-publication",
+      requiredEvidence: [...options.required],
+      candidate: path.relative(path.resolve(ROOT, ".."), candidatePath),
+    },
     checks,
     notes: [
-      "This is a fail-closed pre-publication gate. It performs no external publication action.",
+      "This fail-closed gate performs no external publication action. Without publication evidence it is the pre-publication gate; with GitHub/Greasy Fork evidence it is the immediate publication transaction audit.",
       "Every required platform evidence record must be PASS and match the current project commit and artifact SHA-256.",
     ],
     startedAt: timestamp,
@@ -974,7 +1005,7 @@ async function publishGithub(args, json) {
   const releaseEvidence = JSON.parse(await readFile(evidencePath, "utf8"));
   const validator = new Ajv2020({ allErrors: true, strict: false }).compile(evidenceSchema);
   const inspection = inspectEvidence(releaseEvidence, validator, evidencePath);
-  if (!inspection.pass || releaseEvidence.status !== "PASS" || releaseEvidence.probe !== "release-check") throw new Error("publish-github requires a valid release-check PASS evidence record");
+  if (!inspection.pass || releaseEvidence.status !== "PASS" || releaseEvidence.probe !== "release-check" || releaseEvidence.environment?.phase !== "pre-publication") throw new Error("publish-github requires a valid pre-publication release-check PASS evidence record");
   if (releaseEvidence.project !== project.id || releaseEvidence.sourceCommit !== headResult.value || releaseEvidence.artifact?.sha256 !== artifactSha256) {
     throw new Error("release-check evidence does not match the current project commit and artifact SHA-256");
   }
@@ -1050,6 +1081,9 @@ async function publishGithub(args, json) {
 
 async function collectProjectValidation(projectRoot) {
   const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
+  const projectSchema = await loadJson("schemas/project.schema.json");
+  const projectSchemaValidator = new Ajv2020({ allErrors: true, strict: false }).compile(projectSchema);
+  const projectSchemaValid = projectSchemaValidator(project);
   const policy = await loadJson("policies/public-boundary.json");
   const scriptRoot = path.join(projectRoot, "userscripts");
   const scriptFiles = await readdir(scriptRoot).catch((error) => (error?.code === "ENOENT" ? [] : Promise.reject(error)));
@@ -1061,6 +1095,7 @@ async function collectProjectValidation(projectRoot) {
   const artifactExists = artifactPath ? await access(artifactPath, constants.F_OK).then(() => true).catch(() => false) : false;
   const script = artifactExists ? await readFile(artifactPath, "utf8") : "";
   const checks = {
+    projectSchema: projectSchemaValid,
     schemaVersion: project.schemaVersion === 1,
     id: typeof project.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(project.id),
     name: typeof project.name === "string" && project.name.length > 0,
@@ -1069,7 +1104,7 @@ async function collectProjectValidation(projectRoot) {
     targets: Array.isArray(project.targets?.matches) && project.targets.matches.length > 0 && Array.isArray(project.targets?.requiredVerification),
     permissions: Array.isArray(project.permissions?.grants) && Array.isArray(project.permissions?.connect) && typeof project.permissions?.justifications === "object",
     permissionReasons: Array.isArray(project.permissions?.grants) && project.permissions.grants.every((grant) => typeof project.permissions.justifications?.[grant] === "string" && project.permissions.justifications[grant].length > 0),
-    release: typeof project.release?.githubRepository === "string" && typeof project.release?.greasyForkRequired === "boolean",
+    release: typeof project.release?.githubRepository === "string" && typeof project.release?.greasyForkRequired === "boolean" && (project.release.greasyForkAdultContent === undefined || typeof project.release.greasyForkAdultContent === "boolean"),
     singleDirectScript: project.mode === "direct" ? directScriptFiles.length === 1 : true,
     bundleConfig: project.mode !== "bundle" || (project.build?.adapter === "esbuild" && project.build?.entry === "src/index.ts" && bundleOutputSafe && project.build?.minify === false),
     bundleArtifact: project.mode !== "bundle" || artifactExists,
@@ -1088,8 +1123,9 @@ async function collectProjectValidation(projectRoot) {
     }
   }
   checks.forbiddenText = forbidden;
+  if (!projectSchemaValid) checks.projectSchemaErrors = projectSchemaValidator.errors ?? [];
   checks.pass = Object.entries(checks)
-    .filter(([key]) => key !== "forbiddenText")
+    .filter(([key]) => !["forbiddenText", "projectSchemaErrors"].includes(key))
     .every(([, value]) => value === true) && forbidden.length === 0;
   return { project: project.id ?? null, checks, pass: checks.pass, artifactRelative };
 }
@@ -1251,6 +1287,7 @@ async function mobileHandoff(args, json) {
   if (!manifestValidator(manifest)) throw new Error(`Mobile userscript probe manifest is invalid: ${JSON.stringify(manifestValidator.errors)}`);
   const validation = await collectProjectValidation(projectRoot);
   if (!validation.pass) throw new Error("Project validation failed; mobile-handoff stopped");
+  if (gitOutput(projectRoot, ["status", "--porcelain"]).value !== "") throw new Error("mobile-handoff requires the project Git worktree to be clean");
   const candidatePath = evidencePathFromArg(options.candidate);
   const candidate = JSON.parse(await readFile(candidatePath, "utf8"));
   const resultSchema = await loadJson("schemas/result.schema.json");
@@ -1275,12 +1312,18 @@ async function mobileHandoff(args, json) {
     if (!mobileVerification.installPath || !mobileVerification.smoke?.url || !Array.isArray(mobileVerification.smoke.requiredText) || !mobileVerification.smoke.requiredText.length) {
       throw new Error("targets.mobileVerification requires installPath, smoke.url, and at least one smoke.requiredText marker");
     }
+    if (!mobileVerification.automationAssertions?.domMarker) {
+      throw new Error("targets.mobileVerification requires automationAssertions.domMarker for a reusable emulator gate");
+    }
     const smokeUrl = new URL(mobileVerification.smoke.url);
     if (!['http:', 'https:'].includes(smokeUrl.protocol) || smokeUrl.username || smokeUrl.password) {
       throw new Error("targets.mobileVerification.smoke.url must be an http(s) URL without credentials");
     }
   }
   const requiredChecks = mobileVerification?.requiredChecks ?? manifest.requiredChecks;
+  if (options.target === "oneplus" && (!Array.isArray(mobileVerification?.acceptanceChecks) || mobileVerification.acceptanceChecks.length === 0)) {
+    throw new Error("OnePlus targets require targets.mobileVerification.acceptanceChecks for final user acceptance");
+  }
   const smokeAssertions = mobileVerification?.smoke?.requiredText?.length
     ? { requiredText: mobileVerification.smoke.requiredText }
     : undefined;
@@ -1309,6 +1352,8 @@ async function mobileHandoff(args, json) {
       installUrl: `${base}${installPath}?v=${encodeURIComponent(version)}`,
       smokeUrl: smokePath.toString(),
       requiredChecks,
+      automationAssertions: mobileVerification?.automationAssertions,
+      ...(options.target === "oneplus" ? { acceptanceChecks: mobileVerification.acceptanceChecks } : {}),
       ...(smokeAssertions ? { smokeAssertions } : {}),
       evidenceDirectory,
     },
@@ -1329,13 +1374,95 @@ async function mobileHandoff(args, json) {
   else console.log(`Mobile handoff: PASS\nInstall: ${result.handoff.installUrl}\nSmoke: ${result.handoff.smokeUrl}\nEvidence directory: ${result.handoff.evidenceDirectory}`);
 }
 
+function parseFinalizeOnePlusOptions(args) {
+  if (!args[0] || args[0].startsWith("--")) throw new Error("finalize-oneplus-acceptance requires a project path");
+  const options = { project: args[0], candidate: null, emulator: null, deviceObservation: null, confirmed: false };
+  for (let index = 1; index < args.length; index += 1) {
+    const option = args[index];
+    if (["--candidate", "--emulator", "--device-observation"].includes(option)) {
+      const value = takeOptionValue(args, index, option);
+      index += 1;
+      if (option === "--candidate") options.candidate = value;
+      else if (option === "--emulator") options.emulator = value;
+      else options.deviceObservation = value;
+    } else if (option === "--confirmed") {
+      options.confirmed = true;
+    } else {
+      throw new Error(`Unknown finalize-oneplus-acceptance option '${option}'`);
+    }
+  }
+  if (!options.candidate || !options.emulator || !options.deviceObservation) {
+    throw new Error("finalize-oneplus-acceptance requires --candidate, --emulator and --device-observation");
+  }
+  if (!options.confirmed) throw new Error("finalize-oneplus-acceptance requires --confirmed after explicit final user acceptance");
+  return options;
+}
+
+async function finalizeOnePlusAcceptance(args, json) {
+  requireSupportedRuntime("finalize-oneplus-acceptance");
+  const options = parseFinalizeOnePlusOptions(args);
+  const projectRoot = projectPathFromArg(options.project);
+  const project = JSON.parse(await readFile(path.join(projectRoot, "userscript.project.json"), "utf8"));
+  const validation = await collectProjectValidation(projectRoot);
+  if (!validation.pass) throw new Error("Project validation failed; OnePlus acceptance finalization stopped");
+  if (gitOutput(projectRoot, ["status", "--porcelain"]).value !== "") throw new Error("finalize-oneplus-acceptance requires the project Git worktree to be clean");
+
+  const candidatePath = evidencePathFromArg(options.candidate);
+  const emulatorPath = evidencePathFromArg(options.emulator);
+  const observationPath = evidencePathFromArg(options.deviceObservation);
+  const [candidate, emulator, deviceObservation] = await Promise.all(
+    [candidatePath, emulatorPath, observationPath].map(async (filePath) => JSON.parse(await readFile(filePath, "utf8"))),
+  );
+  const schema = await loadJson("schemas/result.schema.json");
+  const validator = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+  const manifests = { emulator: await loadMobileManifest("emulator"), oneplus: await loadMobileManifest("oneplus") };
+  const inspections = {
+    candidate: inspectEvidence(candidate, validator, candidatePath),
+    emulator: inspectEvidence(emulator, validator, emulatorPath, await mobileManifestForEvidenceWithProject(emulator, manifests)),
+    deviceObservation: inspectEvidence(deviceObservation, validator, observationPath, await mobileManifestForEvidenceWithProject(deviceObservation, manifests)),
+  };
+  for (const [name, inspection] of Object.entries(inspections)) {
+    if (!inspection.pass) throw new Error(`${name} evidence validation failed: ${JSON.stringify(inspection)}`);
+  }
+  const forbiddenObservationFields = forbiddenEvidenceKeys(deviceObservation, manifests.oneplus.evidence.forbiddenFields);
+  if (forbiddenObservationFields.length) throw new Error(`Device observation contains forbidden private fields: ${forbiddenObservationFields.join(", ")}`);
+
+  const sourceCommit = gitOutput(projectRoot, ["rev-parse", "HEAD"]).value;
+  const artifactRelative = validation.artifactRelative;
+  const artifactPath = artifactRelative ? path.join(projectRoot, artifactRelative) : null;
+  const artifactSha256 = artifactPath ? createHash("sha256").update(await readFile(artifactPath)).digest("hex") : null;
+  if (!sourceCommit || candidate.project !== project.id || candidate.sourceCommit !== sourceCommit || candidate.artifact?.sha256 !== artifactSha256) {
+    throw new Error("Candidate evidence does not match the current project commit and artifact SHA-256");
+  }
+  const inputInspection = inspectOnePlusAcceptanceInputs({ project, candidate, emulator, deviceObservation });
+  if (!inputInspection.pass) throw new Error(`OnePlus acceptance preconditions failed: ${inputInspection.failures.join("; ")}`);
+
+  const confirmedAt = new Date().toISOString();
+  const runId = `oneplus-15-firefox-manager-acceptance-${project.id}-${confirmedAt.replace(/[:.]/g, "-")}`;
+  const evidence = buildOnePlusAcceptanceEvidence({ project, candidate, emulator, deviceObservation, confirmedAt, runId });
+  const finalInspection = inspectEvidence(evidence, validator, "pending-oneplus-acceptance.json", await mobileManifestForEvidenceWithProject(evidence, manifests));
+  if (!finalInspection.pass) throw new Error(`Generated OnePlus acceptance evidence failed validation: ${JSON.stringify(finalInspection)}`);
+  const forbiddenOutputFields = forbiddenEvidenceKeys(evidence, manifests.oneplus.evidence.forbiddenFields);
+  if (forbiddenOutputFields.length) throw new Error(`Generated OnePlus acceptance evidence contains forbidden fields: ${forbiddenOutputFields.join(", ")}`);
+
+  const evidenceDirectory = path.resolve(ROOT, "..", "private", "evidence", project.id, "oneplus-15-firefox-manager");
+  await mkdir(evidenceDirectory, { recursive: true, mode: 0o700 });
+  const outputPath = path.join(evidenceDirectory, `${runId}.json`);
+  await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+  if (json) console.log(JSON.stringify({ ...evidence, evidencePath: path.relative(path.resolve(ROOT, ".."), outputPath) }, null, 2));
+  else console.log(`OnePlus final acceptance: PASS\nEvidence: ${path.relative(path.resolve(ROOT, ".."), outputPath)}`);
+}
+
 function parseGreasyForkHandoffOptions(args) {
   if (!args[0] || args[0].startsWith("--")) throw new Error("greasyfork-handoff requires a project path");
-  const options = { project: args[0], candidate: null, scriptId: null, baseUrl: "https://greasyfork.org" };
+  const options = { project: args[0], candidate: null, releaseEvidence: null, scriptId: null, baseUrl: "https://greasyfork.org" };
   for (let index = 1; index < args.length; index += 1) {
     const option = args[index];
     if (option === "--candidate") {
       options.candidate = takeOptionValue(args, index, option);
+      index += 1;
+    } else if (option === "--release-evidence") {
+      options.releaseEvidence = takeOptionValue(args, index, option);
       index += 1;
     } else if (option === "--script-id") {
       options.scriptId = takeOptionValue(args, index, option);
@@ -1348,6 +1475,7 @@ function parseGreasyForkHandoffOptions(args) {
     }
   }
   if (!options.candidate) throw new Error("greasyfork-handoff requires --candidate");
+  if (!options.releaseEvidence) throw new Error("greasyfork-handoff requires --release-evidence");
   if (options.scriptId !== null && options.scriptId !== "new" && !/^\d+$/.test(options.scriptId)) {
     throw new Error("greasyfork-handoff --script-id must be a numeric ID or 'new'");
   }
@@ -1371,6 +1499,8 @@ async function greasyForkHandoff(args, json) {
   if (!manifestValidator(manifest)) throw new Error(`Greasy Fork publication manifest is invalid: ${JSON.stringify(manifestValidator.errors)}`);
   const validation = await collectProjectValidation(projectRoot);
   if (!validation.pass) throw new Error("Project validation failed; greasyfork-handoff stopped");
+  if (gitOutput(projectRoot, ["status", "--porcelain"]).value !== "") throw new Error("greasyfork-handoff requires the project Git worktree to be clean");
+  if (typeof project.release?.greasyForkAdultContent !== "boolean") throw new Error("greasyfork-handoff requires an explicit release.greasyForkAdultContent boolean");
   const candidatePath = evidencePathFromArg(options.candidate);
   const candidate = JSON.parse(await readFile(candidatePath, "utf8"));
   const resultSchema = await loadJson("schemas/result.schema.json");
@@ -1384,13 +1514,26 @@ async function greasyForkHandoff(args, json) {
   if (candidate.project !== project.id || candidate.sourceCommit !== sourceCommit || candidate.artifact?.sha256 !== artifactSha256) {
     throw new Error("Candidate evidence does not match the current project commit and artifact SHA-256");
   }
+  const releaseEvidencePath = evidencePathFromArg(options.releaseEvidence);
+  const releaseEvidence = JSON.parse(await readFile(releaseEvidencePath, "utf8"));
+  const releaseInspection = inspectEvidence(releaseEvidence, resultValidator, releaseEvidencePath);
+  if (!releaseInspection.pass || releaseEvidence.status !== "PASS" || releaseEvidence.probe !== "release-check" || releaseEvidence.environment?.phase !== "pre-publication") {
+    throw new Error("greasyfork-handoff requires a valid pre-publication release-check PASS evidence record");
+  }
+  if (releaseEvidence.project !== project.id || releaseEvidence.sourceCommit !== sourceCommit || releaseEvidence.artifact?.sha256 !== artifactSha256) {
+    throw new Error("release-check evidence does not match the current project commit and artifact SHA-256");
+  }
   const version = releaseVersion(await readFile(artifactPath, "utf8"));
   const knownScriptId = options.scriptId !== null;
   const fillPath = (template) => template.replaceAll("{scriptId}", options.scriptId);
   const base = options.baseUrl;
   const handoff = {
     createUrl: `${base}${manifest.paths.create}`,
-    requiredChecks: manifest.requiredChecks,
+    requiredChecks: [
+      ...manifest.requiredChecks,
+      ...(project.release.greasyForkAdultContent ? ["greasyfork-adult-content-declaration"] : []),
+    ],
+    adultContent: project.release.greasyForkAdultContent,
     evidenceDirectory: manifest.evidence.relativeDirectory.replace("<project>", project.id),
   };
   if (knownScriptId) {
@@ -1413,6 +1556,7 @@ async function greasyForkHandoff(args, json) {
       candidateEvidence: path.relative(path.resolve(ROOT, ".."), candidatePath),
       scriptId: options.scriptId,
       publicationMode: knownScriptId ? "update" : "create",
+      releaseEvidence: path.relative(path.resolve(ROOT, ".."), releaseEvidencePath),
     },
     handoff,
     checks: [
@@ -1459,6 +1603,7 @@ async function main() {
   if (command === "new") return newProject(rest, json);
   if (command === "candidate") return candidate(rest, json);
   if (command === "mobile-handoff") return mobileHandoff(rest, json);
+  if (command === "finalize-oneplus-acceptance") return finalizeOnePlusAcceptance(rest, json);
   if (command === "greasyfork-handoff") return greasyForkHandoff(rest, json);
   if (command === "status") return status(json);
   usage();

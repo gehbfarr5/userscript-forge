@@ -11,7 +11,7 @@
 
 ## 当前阶段边界
 
-当前是 Stage B2 探针阶段。Stage B1 的本机结构、静态检查和直接浏览器页面测试已完成；Mac Chrome + Tampermonkey 5.5.0 的 v0.1.3 canary 更新、注入和 GM 存储验证已 PASS，GitHub v0.1.3 发布资产以及 Greasy Fork v0.1.3 第二版本公开同步已核对；Android/一加 15 Firefox 用户脚本门禁、iPhone Safari + Stay 和真实样板尚未执行；Codex 与 Claude CLI 的本地只读核心探针已 PASS，仓库写入、浏览器、移动端和发布能力仍须分别实测。
+当前是 Stage B2 探针阶段，实时摘要以 `docs/current-status.md` 为准。Stage B1、本机直接浏览器、Mac Chrome + Tampermonkey 5.5.0、GitHub/Greasy Fork canary、通用 Android/iOS Appium 后端和当前 Android 样板的桌面门禁已有证据；样板的 instrumented Fenix 模拟器门禁、一加 15 原版 Firefox 最终验收与正式 GitHub/Greasy Fork 发布仍未完成。iPhone Safari + Stay 明确延后，不得误写成当前样板的阻塞项。
 
 运行时基线记录在 `.node-version`，当前固定为 Node 24.18.0；不要用本机更高版本把 `doctor` 的失败改成通过。
 

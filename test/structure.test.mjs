@@ -24,6 +24,8 @@ test("central scaffold contains the public contract", async () => {
     "schemas/mobile-userscript-probe.schema.json",
     "schemas/greasyfork-publication-probe.schema.json",
     "policies/public-boundary.json",
+    "adapters/mobile-orchestrator/oneplus-user-acceptance.mjs",
+    "docs/current-status.md",
     "docs/contracts/lifecycle.md",
     "docs/contracts/intake.md",
     "docs/contracts/legacy-oneplus-skill.md",
@@ -158,13 +160,23 @@ test("bundle projects require the readable esbuild adapter", async () => {
   assert.match(cli, /--emulator PATH --oneplus PATH/);
   assert.match(cli, /device-target-explicit/);
   assert.match(cli, /declared-\$\{requiredKind\}-evidence-required/);
-  assert.match(cli, /release-github-evidence-required/);
-  assert.match(cli, /release-greasyfork-evidence-required/);
+  assert.match(cli, /publication-transaction-audit/);
+  assert.match(cli, /phase: publicationAudit/);
+  assert.match(cli, /publication-audit-github-evidence-required/);
+  assert.match(cli, /publication-audit-greasyfork-evidence-required/);
   assert.match(cli, /publish-github <path> \[options\]/);
   assert.match(cli, /mobile-handoff <path>/);
+  assert.match(cli, /mobile-handoff requires the project Git worktree to be clean/);
+  assert.match(cli, /finalize-oneplus-acceptance/);
+  assert.match(cli, /user-final-acceptance/);
   assert.match(cli, /--target emulator\|oneplus/);
   assert.match(cli, /external-orchestrator-required/);
-  assert.match(cli, /greasyfork-handoff <path> --candidate PATH \[--script-id ID\|new\]/);
+  assert.match(cli, /greasyfork-handoff <path> --candidate PATH --release-evidence PATH/);
+  assert.match(cli, /greasyfork-handoff requires --release-evidence/);
+  assert.match(cli, /greasyfork-handoff requires the project Git worktree to be clean/);
+  assert.match(cli, /greasyfork-handoff requires an explicit release\.greasyForkAdultContent boolean/);
+  assert.match(cli, /greasyfork-adult-content-declaration/);
+  assert.match(cli, /--greasy-fork-adult/);
   assert.match(cli, /options\.scriptId !== null && options\.scriptId !== "new"/);
   assert.match(cli, /publicationMode: knownScriptId \? "update" : "create"/);
   assert.match(cli, /if \(knownScriptId\) \{\s+Object\.assign\(handoff/);
