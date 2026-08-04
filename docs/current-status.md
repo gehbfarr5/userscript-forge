@@ -38,15 +38,15 @@ artifact evidence.
 
 - Stock Firefox/GeckoDriver Android existing-session attach is unsupported.
   Native Appium evidence is diagnostic-only and cannot prove DOM injection.
-- Mac Chrome + Tampermonkey still needs a current-candidate manager evidence
-  run. The browser is waiting at the extension's security confirmation page;
-  the browser automation surface cannot click that page automatically.
+- Mac Chrome + Tampermonkey current-candidate manager evidence is now PASS on
+  the real production-origin page at a 412x915 viewport. It covers injection,
+  desktop-width layout, actual horizontal navigation and the rollback toggle.
 - OnePlus 15 must use stock Firefox for the final acceptance gate. A PASS must
   include an explicit final-user-acceptance record bound to the candidate;
   generic Appium or a manual statement without that binding is insufficient.
-  The latest wireless discovery found no mDNS service or reachable documented
+  Two fresh wireless discoveries found no mDNS service or reachable documented
   endpoint; only the local emulator was attached, so no OnePlus run was
-  started.
+  started. A real-device run remains required after the phone is online.
 - The current sample has public source on GitHub but no matching GitHub
   Release evidence and no Greasy Fork project evidence. Publication remains
   closed until Chrome, OnePlus and the pre-publication release gate pass.

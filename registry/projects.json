@@ -20,7 +20,7 @@
       },
       "verification": {
         "androidEmulator": "pass",
-        "chromeTampermonkey": "pending-user-extension-confirmation",
+        "chromeTampermonkey": "pass-current-candidate-production-page",
         "oneplus15Firefox": "blocked-no-verified-wireless-transport"
       },
       "publication": "not-published"
