@@ -33,8 +33,10 @@ artifact evidence.
 - Stock Firefox/GeckoDriver Android existing-session attach is unsupported.
   Native Appium evidence is diagnostic-only and cannot prove DOM injection.
 - A clean candidate for source commit `b87a61073b29f9718bda4cbdcf1ceaac3583cc6b`
-  has not yet been locked. Mac Chrome + Tampermonkey and the instrumented Fenix
-  live Tampermonkey/project injection run must both be rerun against that same
+  is locked as
+  `candidate-forum-desktop-layout-enhancer-2026-08-04T09-55-06-178Z`.
+  Mac Chrome + Tampermonkey and the instrumented Fenix live
+  Tampermonkey/project injection run must both be rerun against that same
   candidate before they can produce current project evidence.
 - OnePlus 15 must use stock Firefox for the final acceptance gate. A PASS must
   include an explicit final-user-acceptance record bound to the candidate;
