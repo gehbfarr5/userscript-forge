@@ -36,11 +36,18 @@ if [[ "$TARGET" == "emulator" ]]; then
 else
   [[ "$SERIAL" != emulator-* ]] || die "real 目标拒绝 emulator-* 序列号。"
   [[ -n "$EXPECTED_SERIAL" ]] || die "real 目标必须提供 --expected-serial。"
-  [[ "$SERIAL" == "$EXPECTED_SERIAL" ]] || die "设备序列号与 --expected-serial 不一致。"
 fi
 
 state="$("$ADB_BIN" -s "$SERIAL" get-state 2>/dev/null | tr -d '\r')"
 [[ "$state" == "device" ]] || die "目标设备 '$SERIAL' 当前状态不是 device（实际为 '$state'）。"
+
+if [[ "$TARGET" == "real" ]]; then
+  # --serial is an ADB transport (USB serial, Wi-Fi host:port, or mDNS
+  # endpoint); --expected-serial is the immutable device identity returned by
+  # ro.serialno.  They are intentionally allowed to differ for Wi-Fi ADB.
+  reported_serial="$("$ADB_BIN" -s "$SERIAL" shell getprop ro.serialno 2>/dev/null | tr -d '\r' | tail -n 1)"
+  [[ "$reported_serial" == "$EXPECTED_SERIAL" ]] || die "设备 ro.serialno '$reported_serial' 与 --expected-serial 不一致。"
+fi
 
 "$ADB_BIN" -s "$SERIAL" shell am start \
   -a android.intent.action.VIEW \

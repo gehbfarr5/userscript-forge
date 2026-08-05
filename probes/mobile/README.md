@@ -65,8 +65,13 @@ pnpm run forge -- finalize-oneplus-acceptance ../projects/<project> \
 ```text
 python3 forge/probes/mobile/serve.py --directory projects/userscript-environment-check --host 0.0.0.0 --port 8765
 forge/probes/mobile/open-firefox-url.sh --serial emulator-5554 --target emulator --url http://10.0.2.2:8765/userscripts/userscript-environment-check.user.js?v=<version>
-forge/probes/mobile/open-firefox-url.sh --serial <explicit-real-serial> --expected-serial <same-serial> --target real --url http://<host-ip>:8765/test-pages/smoke.html
+forge/probes/mobile/open-firefox-url.sh --serial <explicit-real-transport> --expected-serial <verified-ro.serialno> --target real --url http://<host-ip>:8765/test-pages/smoke.html
 ```
+
+For Wi-Fi ADB, `<explicit-real-transport>` is the verified `host:port` (or
+explicit mDNS transport), while `<verified-ro.serialno>` is the device identity
+returned by `getprop ro.serialno`; they are expected to differ. The helper
+checks that identity on the selected transport before navigating.
 
 `open-firefox-url.sh` 只负责导航，安装/更新按钮和注入结果必须由 Appium/Computer Use 的 UI 证据断言；导航成功不能单独产生 `PASS`。
 
