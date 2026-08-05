@@ -28,15 +28,14 @@ artifact evidence.
   GM-storage lifecycle, 960px layout, actual horizontal scrolling and rollback
   toggle on the exact instrumented Fenix build; it does not prove OnePlus OEM
   behavior.
-- The current OnePlus 15 stock Firefox technical canary is also PASS for this
-  candidate. The external run reached the real smoke page and observed the
-  `mobile-desktop` marker, userscript root class, injected style, rollback
-  toggle and required layout text. Firefox native Add was `NOT_PRESENT`, which
-  is allowed because the RDP manager click and the final smoke marker both
-  passed. The run used the explicit Android VIEW-intent navigation path for
-  GeckoView and restored the temporary awake guard state. This is technical
-  device evidence; it is not yet the separate `user-final-acceptance` or
-  publication evidence.
+- The current OnePlus 15 stock Firefox technical canary reached the real smoke
+  page for this candidate and observed the `mobile-desktop` marker, userscript
+  root class, injected style, rollback toggle and required layout text.
+  Firefox native Add was `NOT_PRESENT`, which is allowed after the RDP manager
+  click. The run used the explicit Android VIEW-intent navigation path for
+  GeckoView and restored the temporary awake guard state. The formal device
+  observation remains `BLOCKED` at `manager-injection` until the separate
+  `user-final-acceptance` command binds the user's visible acceptance.
 - The exact instrumented Fenix APK has schema-v2 PASS build evidence: 23
   HomeActivity tests, stage/package overlay, official Gecko payload equality,
   compiled manifest marker, arm64-only ABI and APK signature all pass. Its
