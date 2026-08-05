@@ -28,6 +28,15 @@ artifact evidence.
   GM-storage lifecycle, 960px layout, actual horizontal scrolling and rollback
   toggle on the exact instrumented Fenix build; it does not prove OnePlus OEM
   behavior.
+- The current OnePlus 15 stock Firefox technical canary is also PASS for this
+  candidate. The external run reached the real smoke page and observed the
+  `mobile-desktop` marker, userscript root class, injected style, rollback
+  toggle and required layout text. Firefox native Add was `NOT_PRESENT`, which
+  is allowed because the RDP manager click and the final smoke marker both
+  passed. The run used the explicit Android VIEW-intent navigation path for
+  GeckoView and restored the temporary awake guard state. This is technical
+  device evidence; it is not yet the separate `user-final-acceptance` or
+  publication evidence.
 - The exact instrumented Fenix APK has schema-v2 PASS build evidence: 23
   HomeActivity tests, stage/package overlay, official Gecko payload equality,
   compiled manifest marker, arm64-only ABI and APK signature all pass. Its
@@ -41,19 +50,18 @@ artifact evidence.
 - Mac Chrome + Tampermonkey current-candidate manager evidence is now PASS on
   the real production-origin page at a 412x915 viewport. It covers injection,
   desktop-width layout, actual horizontal navigation and the rollback toggle.
-- OnePlus 15 must use stock Firefox for the final acceptance gate. A PASS must
-  include an explicit final-user-acceptance record bound to the candidate;
-  generic Appium or a manual statement without that binding is insufficient.
-  The documented home Wi-Fi ADB endpoint is now verified live against PLK110,
-  the expected serial, and the factory Wi-Fi MAC; the phone-to-host handoff
-  address on the current LAN also returned HTTP 200. The current real-device
-  gate reaches Firefox, but remains BLOCKED because stock Firefox/GeckoView's
-  native Appium page-source path does not expose the controlled install page
-  within the MCP budget. This is an automation-capability boundary, not an ADB
-  connectivity failure.
+- OnePlus 15 must use stock Firefox for the final acceptance gate. The current
+  technical device canary is PASS, but release still requires an explicit
+  `user-final-acceptance` record bound to the candidate; generic Appium or a
+  manual statement without that binding is insufficient. The documented Wi-Fi
+  ADB and phone-to-host handoff paths are verified. The earlier native
+  Appium/page-source limitation remains recorded as a capability boundary;
+  the RDP/WebConsole plus Android VIEW-intent adapter is the accepted OnePlus
+  technical path, not a waiver of the final acceptance or release checks.
 - The current sample has public source on GitHub but no matching GitHub
   Release evidence and no Greasy Fork project evidence. Publication remains
-  closed until Chrome, OnePlus and the pre-publication release gate pass.
+  closed until the explicit final-user-acceptance record and the
+  pre-publication release gate pass.
 
 ## Deliberately deferred
 
