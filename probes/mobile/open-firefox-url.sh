@@ -49,10 +49,16 @@ if [[ "$TARGET" == "real" ]]; then
   [[ "$reported_serial" == "$EXPECTED_SERIAL" ]] || die "设备 ro.serialno '$reported_serial' 与 --expected-serial 不一致。"
 fi
 
+# `adb shell` executes a remote shell command.  Passing URL and package as
+# separate argv entries does not preserve host-side quoting, so a query-string
+# ampersand would otherwise become the remote shell's command separator.  Bash
+# `%q` produces an escaped token that remains one argument on Android's shell.
+printf -v remote_url '%q' "$URL"
+printf -v remote_package '%q' "$PACKAGE"
 "$ADB_BIN" -s "$SERIAL" shell am start \
   -a android.intent.action.VIEW \
   -c android.intent.category.BROWSABLE \
-  -d "$URL" \
-  -p "$PACKAGE" >/dev/null
+  -d "$remote_url" \
+  -p "$remote_package" >/dev/null
 
 printf 'Opened URL in %s on %s: %s\n' "$PACKAGE" "$SERIAL" "$URL"
