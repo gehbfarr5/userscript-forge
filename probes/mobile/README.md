@@ -20,11 +20,11 @@ pnpm run forge -- validate-evidence ../private/evidence/<project>/<run>/result.j
 
 ## Android 模拟器 Firefox canary
 
-仓外编排器的参考入口是 `~/Desktop/mobile-automation-infra/scripts/android-emulator-userscript-canary.mjs`。它会执行下面的 handoff，并在非 Codex-headless 环境中负责显式模拟器/Appium 生命周期；先运行 `--dry-run`，再使用当前 candidate evidence 运行真实门禁。
+仓外编排器的参考入口是 `~/Documents/AI-Agent-Workspace/mobile/mobile-automation-infra/scripts/android-emulator-userscript-canary.mjs`。它会执行下面的 handoff，并在非 Codex-headless 环境中负责显式模拟器/Appium 生命周期；先运行 `--dry-run`，再使用当前 candidate evidence 运行真实门禁。
 
 下一门禁使用公开的 `userscript-environment-check` 项目，不使用真实论坛页面或真实账号：
 
-1. 编排器先按 `~/Desktop/mobile-automation-infra` 的 doctor/runbook 检查 `PLK110_API_36`，只选择 Android emulator + Appium。
+1. 编排器先按 `~/Documents/AI-Agent-Workspace/mobile/mobile-automation-infra` 的 doctor/runbook 检查 `PLK110_API_36`，只选择 Android emulator + Appium。
 2. 让宿主机的静态服务监听可被模拟器访问的地址，然后在 Firefox 内打开 `http://10.0.2.2:<port>/userscripts/userscript-environment-check.user.js`，完成管理器安装；Android Emulator 的 `10.0.2.2` 是宿主机回环地址映射，不能在模拟器内使用 `127.0.0.1` 代替。若当前移动端管理器无法通过这个本地 URL 安装，结果必须是 `BLOCKED`，不能改用直接 `<script>` 测试冒充注入。
 3. 打开 `http://10.0.2.2:<port>/test-pages/install.html`，通过页面中的安装链接进入管理器安装页并明确点击安装；直接打开 `.user.js` 源码不算安装。
 4. 打开 `http://10.0.2.2:<port>/test-pages/smoke.html`，结构化断言必须观察到 `Injection: PASS`、管理器名称和 `GM storage: AVAILABLE`。
